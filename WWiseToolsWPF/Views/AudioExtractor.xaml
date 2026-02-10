@@ -1,0 +1,165 @@
+<UserControl x:Class="WWiseToolsWPF.Views.AudioExtractor"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             MinWidth="900"
+             MinHeight="600">
+
+    <Grid Margin="12">
+        <!-- MAIN LAYOUT -->
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <!-- Parameters -->
+            <RowDefinition Height="*"/>
+            <!-- Processing -->
+            <RowDefinition Height="Auto"/>
+            <!-- Progress + Export -->
+        </Grid.RowDefinitions>
+
+        <!-- ===================== -->
+        <!-- PARAMETERS -->
+        <!-- ===================== -->
+        <GroupBox Grid.Row="0"
+				  x:Name="ParametersGroupBox"
+                  Header="Parameters"
+                  FontFamily="Segoe UI"
+                  FontSize="12"
+                  Padding="8"
+                  Margin="0,0,0,12">
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="140"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Input -->
+                <Label Grid.Row="0" Grid.Column="0" Content="Input Files:" VerticalAlignment="Center"/>
+                <TextBox Grid.Row="0" Grid.Column="1"
+						 x:Name="InputFilesTextBox"
+                         IsReadOnly="True"
+                         Margin="6,4"
+                         Text="No Input Files Selected."/>
+                <Button Grid.Row="0" Grid.Column="2"
+                        Content="Browse"
+                        Padding="8,4"
+                        Margin="6,4"
+                        Click="InputFilesBrowse_Click"/>
+
+                <!-- Output -->
+                <Label Grid.Row="1" Grid.Column="0" Content="Output Directory:" VerticalAlignment="Center"/>
+                <TextBox Grid.Row="1" Grid.Column="1"
+						 x:Name="OutputDirectoryTextBox"
+                         IsReadOnly="True"
+                         Margin="6,4"
+                         Text="No Output Directory Selected."/>
+                <Button Grid.Row="1" Grid.Column="2"
+                        Content="Browse"
+                        Padding="8,4"
+                        Margin="6,4"
+                        Click="OutputDirectoryBrowse_Click"/>
+
+                <!-- Known filenames -->
+                <Label Grid.Row="2" Grid.Column="0" Content="Known_Filenames:" VerticalAlignment="Center"/>
+                <TextBox Grid.Row="2" Grid.Column="1"
+						 x:Name="KnownFilenamesTextBox"
+                         IsReadOnly="True"
+                         Margin="6,4"
+                         Text="No Known_Filenames TSV Selected."/>
+                <Button Grid.Row="2" Grid.Column="2"
+                        Content="Browse"
+                        Padding="8,4"
+                        Margin="6,4"
+                        Click="KnownFilenamesBrowse_Click"/>
+
+                <!-- Known events -->
+                <Label Grid.Row="3" Grid.Column="0" Content="Known_Events:" VerticalAlignment="Center"/>
+                <TextBox Grid.Row="3" Grid.Column="1"
+						 x:Name="KnownEventsTextBox"
+                         IsReadOnly="True"
+                         Margin="6,4"
+                         Text="No Known_Events TSV Selected."/>
+                <Button Grid.Row="3" Grid.Column="2"
+                        Content="Browse"
+                        Padding="8,4"
+                        Margin="6,4"
+                        Click="KnownEventsBrowse_Click"/>
+
+                <!-- Format options -->
+                <Label Grid.Row="4" Grid.Column="0" Content="Format:" VerticalAlignment="Center"/>
+                <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" Margin="6,0">
+                    <RadioButton x:Name="WEMExportRadioButton" Content="WEM" GroupName="Format" Checked="WEMExportRadioButton_Checked" Margin="0,5,0,0"/>
+                    <RadioButton x:Name="WAVExportRadioButton" Content="WAV" GroupName="Format" Checked="WAVExportRadioButton_Checked" Margin="5,5,0,0"/>
+                    <RadioButton x:Name="OGGExportRadioButton" Content="OGG" GroupName="Format" Checked="OGGExportRadioButton_Checked" Margin="5,5,0,0"/>
+                </StackPanel>
+
+                <!-- Export options -->
+                <Label Grid.Row="5" Grid.Column="0" Content="Export Options:" VerticalAlignment="Top"/>
+                <WrapPanel Grid.Row="5" Grid.Column="1" Margin="6,4,0,0">
+                    <CheckBox x:Name="SplitOutputCheckBox" Content="Split Output" Margin="0,0,12,0"/>
+                    <CheckBox x:Name="BankedOutputCheckBox" Content="Banked Output" Margin="0,0,12,0"/>
+                    <CheckBox x:Name="LegacyCheckBox" Content="Legacy" Margin="0,0,12,0"/>
+                    <CheckBox x:Name="NoLangCheckBox" Content="NoLang" Margin="0,0,12,0"/>
+                    <CheckBox x:Name="SpreadsheetOutputCheckBox" Content="Spreadsheet Output"/>
+                </WrapPanel>
+            </Grid>
+        </GroupBox>
+
+        <!-- ===================== -->
+        <!-- PROCESSING LOG -->
+        <!-- ===================== -->
+        <GroupBox Grid.Row="1"
+                  Header="Processing"
+                  FontFamily="Segoe UI"
+                  FontSize="12"
+                  Padding="6"
+                  Margin="0,0,0,12">
+
+            <RichTextBox x:Name="StatusTextBox"
+                             IsReadOnly="True"
+                             FontFamily="Consolas"
+                             FontSize="12">
+                <FlowDocument PageWidth="10000"/>
+            </RichTextBox>
+        </GroupBox>
+
+        <!-- ===================== -->
+        <!-- PROGRESS + EXPORT -->
+        <!-- ===================== -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Orientation="Vertical" Margin="0,0,12,0">
+                <ProgressBar x:Name="CurrentProgressBar"
+                             Height="18"
+                             Margin="0,0,0,6"
+                             Minimum="0"
+                             Maximum="100"/>
+
+                <ProgressBar x:Name="TotalProgressBar"
+                             Height="18"
+                             Minimum="0"
+                             Maximum="100"/>
+            </StackPanel>
+
+            <Button Grid.Column="1"
+                    x:Name="ExportButton"
+                    Content="Export"
+                    Width="90"
+                    VerticalAlignment="Center"
+                    Click="ExportButton_Click" Height="42"/>
+        </Grid>
+    </Grid>
+</UserControl>

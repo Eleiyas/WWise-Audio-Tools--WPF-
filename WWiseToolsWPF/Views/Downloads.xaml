@@ -1,0 +1,97 @@
+<UserControl x:Class="WWiseToolsWPF.Views.Downloads"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             MinWidth="900"
+             MinHeight="600">
+
+    <Grid Margin="12">
+        <!-- MAIN LAYOUT -->
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <!-- Parameters -->
+            <RowDefinition Height="*"/>
+            <!-- Processing -->
+            <RowDefinition Height="Auto"/>
+            <!-- Progress + Export -->
+        </Grid.RowDefinitions>
+
+        <!-- ===================== -->
+        <!-- PARAMETERS -->
+        <!-- ===================== -->
+        <GroupBox Grid.Row="0"
+				  x:Name="LibrariesGroupBox"
+                  Header="Libraries"
+                  FontFamily="Segoe UI"
+                  FontSize="12"
+                  Padding="8"
+                  Margin="0,0,0,12">
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="140"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- VGMStream -->
+                <Button 
+                    x:Name="VGMStreamDownloadButton" 
+                    Grid.Row="0" 
+                    Grid.Column="0" 
+                    Content="VGMStream" 
+                    VerticalAlignment="Center" 
+                    Click="VGMStreamDownloadButton_Click" 
+                    Height="25"/>
+
+                <!-- FFmpeg -->
+                <Button 
+                    x:Name="FFmpegDownloadButton" 
+                    Grid.Column="0" 
+                    Content="FFmpeg" 
+                    VerticalAlignment="Center" 
+                    Margin="158,0,-158,0" 
+                    Click="FFmpegDownloadButton_Click"
+                    Height="25"/>
+
+            </Grid>
+        </GroupBox>
+
+        <!-- ===================== -->
+        <!-- PROCESSING LOG -->
+        <!-- ===================== -->
+        <GroupBox Grid.Row="1"
+                  Header="Status"
+                  FontFamily="Segoe UI"
+                  FontSize="12"
+                  Padding="6"
+                  Margin="0,0,0,12">
+
+                <RichTextBox x:Name="StatusTextBox"
+                             IsReadOnly="True"
+                             FontFamily="Consolas"
+                             FontSize="12">
+                    <FlowDocument PageWidth="10000"/>
+                </RichTextBox>
+        </GroupBox>
+
+        <!-- ===================== -->
+        <!-- PROGRESS + EXPORT -->
+        <!-- ===================== -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Orientation="Vertical" Margin="0,0,12,0">
+                <ProgressBar x:Name="CurrentProgressBar"
+                             Height="20"
+                             Margin="0,0,0,6"
+                             Minimum="0"
+                             Maximum="100"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>

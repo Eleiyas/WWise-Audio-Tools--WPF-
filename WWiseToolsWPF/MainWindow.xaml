@@ -1,0 +1,32 @@
+﻿<Window x:Class="WWiseToolsWPF.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:WWiseToolsWPF"
+        Title="WWise Audio Tools"
+        Width="1200" Height="800"
+        MinWidth="900" MinHeight="600"
+        WindowStartupLocation="CenterScreen">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Slide-out menu -->
+        <Border x:Name="MenuBorder" Grid.Column="0" Background="#FF282828" Width="200" HorizontalAlignment="Left" Margin="0">
+            <StackPanel>
+                <ToggleButton x:Name="HamburgerButton" Content="☰" FontSize="18" 
+                              HorizontalAlignment="Left" Margin="8" Width="36" Height="36"
+                              Checked="HamburgerButton_Checked" Unchecked="HamburgerButton_Unchecked"/>
+                <!--<Button Content="InitScreen" Margin="8" Click="InitScreenButton_Click"/>-->
+                <Button Content="Audio Extractor" Margin="8" Click="AudioExtractorButton_Click"/>
+                <Button Content="Downloads" Margin="8" Click="DownloadsButton_Click"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Main content area -->
+        <Border Grid.Column="1" Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}">
+            <ContentControl x:Name="MainContent"/>
+        </Border>
+    </Grid>
+</Window>

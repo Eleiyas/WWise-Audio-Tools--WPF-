@@ -1,0 +1,25 @@
+<UserControl x:Class="WWiseToolsWPF.Views.InitScreen"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Height="Auto" Width="Auto">
+	<Grid>
+		<Grid.RowDefinitions>
+			<RowDefinition Height="*"/>
+		</Grid.RowDefinitions>
+
+		<!-- 'Spacing' is not a valid property for StackPanel in WPF. 
+             To add spacing, use Margin on child elements instead. -->
+		<StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+			<!--<StackPanel.Background>
+				<LinearGradientBrush EndPoint="0.5,1" StartPoint="0.5,0" SpreadMethod="Pad">
+					<GradientStop Color="#FF3D3D3D"/>
+					<GradientStop Color="White" Offset="1"/>
+				</LinearGradientBrush>
+			</StackPanel.Background>-->
+			<!-- Replace path with your logo resource: /Assets/logo.png -->
+			<Image Source="D:\Pictures\My Works\Photoshop\Els logo\ElsLogoE-BlackWhite.png" Width="200" Height="200" Stretch="Uniform" Margin="0,0,0,12" />
+			<TextBlock Text="WWise Audio Tools" FontSize="26" FontWeight="SemiBold" Foreground="Black" HorizontalAlignment="Center" Margin="0,0,0,12"/>
+			<TextBlock Text="Coded by Eleiyas" FontSize="16" Foreground="Gray" HorizontalAlignment="Center"/>
+		</StackPanel>
+	</Grid>
+</UserControl>
