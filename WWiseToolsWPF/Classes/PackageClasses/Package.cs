@@ -131,6 +131,8 @@ namespace WWise_Audio_Tools.Classes.PackageClasses
             SteamsTableSize = reader.ReadUInt32();
             ExternalsTableSize = reader.ReadUInt32();
 
+            /*if (Signature != PackageChunkMagics.AKPK_MAGIC && Signature != PackageChunkMagics.CHK_MAGIC)
+                throw new InvalidDataException("File is not a valid file! It is missing the AKPK header!");*/
             if (Signature != PackageChunkMagics.AKPK_MAGIC)
                 throw new InvalidDataException("File is not a valid .pck file! It is missing the AKPK header!");
         }

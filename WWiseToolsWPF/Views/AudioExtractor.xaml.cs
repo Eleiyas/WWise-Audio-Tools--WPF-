@@ -49,6 +49,7 @@ namespace WWiseToolsWPF.Views
         // Data
         public Dictionary<string, string> KnownFilenames { get; } = new();
         public Dictionary<string, string> KnownEvents { get; } = new();
+        public enum OutputFormat { Wem, Wav, Ogg }
 
         public AudioExtractor()
         {
@@ -74,58 +75,7 @@ namespace WWiseToolsWPF.Views
             UpdateCanExportStatus();
         }
 
-        #region Logging (thread-safe)
-
-        private void EnqueueLog(string text, System.Drawing.Color? color = null)
-        {
-            _logQueue.Enqueue((text, color));
-        }
-
-        private void FlushLogsToUI()
-        {
-            if (_logQueue.IsEmpty) return;
-
-            var entries = new List<(string Text, System.Drawing.Color? Color)>();
-            while (_logQueue.TryDequeue(out var e))
-                entries.Add(e);
-
-            if (entries.Count == 0) return;
-
-            Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
-            {
-                foreach (var e in entries)
-                {
-                    AppendStatusText(e.Text, e.Color);
-                }
-
-                // Defer scrolling until AFTER layout/render
-                Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
-                {
-                    StatusTextBox.ScrollToEnd();
-                }));
-            }));
-        }
-
-        private void AppendStatusText(string text, System.Drawing.Color? color = null)
-        {
-            var paragraph = new Paragraph { Margin = new Thickness(0) };
-            var run = new Run(text);
-            if (color.HasValue)
-            {
-                run.Foreground = new SolidColorBrush(ConvertDrawingColor(color.Value));
-            }
-            paragraph.Inlines.Add(run);
-            StatusTextBox.Document.Blocks.Add(paragraph);
-        }
-
-        private static System.Windows.Media.Color ConvertDrawingColor(System.Drawing.Color c)
-        {
-            return System.Windows.Media.Color.FromArgb(c.A, c.R, c.G, c.B);
-        }
-
-        #endregion
-
-        #region File/Folder Browsers
+        #region GUI Elements
 
         private void InputFilesBrowse_Click(object sender, RoutedEventArgs e)
         {
@@ -222,10 +172,6 @@ namespace WWiseToolsWPF.Views
             UpdateCanExportStatus();
         }
 
-        #endregion
-
-        #region Radio / Check handlers
-
         private void WEMExportRadioButton_Checked(object sender, RoutedEventArgs e)
         {
             if (outputDirSelected == false)
@@ -294,805 +240,6 @@ namespace WWiseToolsWPF.Views
 
         private void SpreadsheetOutputCheckBox_UnChecked(object sender, RoutedEventArgs e) =>
             EnqueueLog("Deselected 'Spreadsheet Output'.", System.Drawing.Color.Gray);
-
-        #endregion
-
-        #region Export / Pipeline (ported core helpers)
-
-        // Run external process and capture stdout/stderr. Registers process to allow abort.
-        private Task<int> RunProcessAsync(string fileName, string arguments, Action<string>? onOutput = null, Action<string>? onError = null)
-        {
-            var tcs = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
-            try
-            {
-                var psi = new ProcessStartInfo(fileName, arguments)
-                {
-                    UseShellExecute = false,
-                    RedirectStandardOutput = onOutput != null,
-                    RedirectStandardError = onError != null,
-                    CreateNoWindow = true
-                };
-
-                var proc = new Process { StartInfo = psi, EnableRaisingEvents = true };
-
-                if (onOutput != null)
-                {
-                    proc.OutputDataReceived += (s, e) => { if (e.Data != null) onOutput(e.Data); };
-                }
-                if (onError != null)
-                {
-                    proc.ErrorDataReceived += (s, e) => { if (e.Data != null) onError(e.Data); };
-                }
-
-                proc.Exited += (s, e) =>
-                {
-                    try { tcs.TrySetResult(proc.ExitCode); }
-                    catch { }
-                    _runningProcesses.TryRemove(proc.Id, out _);
-                    proc.Dispose();
-                };
-
-                proc.Start();
-
-                try { _runningProcesses.TryAdd(proc.Id, proc); } catch { }
-
-                // Ensure kill on cancellation
-                try
-                {
-                    if (_abortCts is not null)
-                    {
-                        var token = _abortCts.Token;
-                        token.Register(() =>
-                        {
-                            try { if (!proc.HasExited) proc.Kill(entireProcessTree: true); } catch { }
-                        });
-                    }
-                }
-                catch { }
-
-                if (onOutput != null) proc.BeginOutputReadLine();
-                if (onError != null) proc.BeginErrorReadLine();
-            }
-            catch (Exception ex)
-            {
-                tcs.TrySetException(ex);
-            }
-            return tcs.Task;
-        }
-
-        private async Task ConvertWemBytesToWavFileAsync(byte[] wemData, string wavOutputPath)
-        {
-            await _conversionSemaphore.WaitAsync();
-            try
-            {
-                if (!Directory.Exists("Processing")) Directory.CreateDirectory("Processing");
-                string tempWem = Path.Combine("Processing", Guid.NewGuid().ToString() + ".wem");
-                string tempWav = Path.Combine("Processing", Guid.NewGuid().ToString() + ".wav");
-                await File.WriteAllBytesAsync(tempWem, wemData);
-
-                string vgmPath = Path.Combine("Tools", "vgmstream-win", "vgmstream-cli.exe");
-                var args = $"-o \"{tempWav}\" \"{tempWem}\"";
-
-                var code = await RunProcessAsync(vgmPath, args, null, s =>
-                {
-                    if (string.IsNullOrWhiteSpace(s)) return;
-                    var line = s.Trim();
-                    if (IsImportantProcessLine(line)) EnqueueLog(line, System.Drawing.Color.Red);
-                });
-                if (code != 0) throw new InvalidOperationException($"vgmstream exited with {code}");
-
-                EnsureParentDirectory(wavOutputPath);
-                try
-                {
-                    if (File.Exists(wavOutputPath)) File.Delete(wavOutputPath);
-                    File.Move(tempWav, wavOutputPath);
-                }
-                catch
-                {
-                    try
-                    {
-                        File.Copy(tempWav, wavOutputPath, overwrite: true);
-                        File.Delete(tempWav);
-                    }
-                    catch (Exception inner)
-                    {
-                        EnqueueLog($"Failed to move/copy temp WAV to destination: {inner.Message}", System.Drawing.Color.Red);
-                        throw;
-                    }
-                }
-                try { if (File.Exists(tempWem)) File.Delete(tempWem); } catch { }
-            }
-            finally
-            {
-                _conversionSemaphore.Release();
-            }
-        }
-
-        private async Task ConvertWavFileToOggAsync(string wavPath, string oggOutputPath)
-        {
-            await _conversionSemaphore.WaitAsync();
-            try
-            {
-                string ffmpegPath = Path.Combine("Tools", "ffmpeg-master-latest-win64-gpl-shared", "bin", "ffmpeg.exe");
-                EnsureParentDirectory(oggOutputPath);
-                var args = $"-y -i \"{wavPath}\" -c:a libvorbis -qscale:a 10 \"{oggOutputPath}\"";
-
-                var code = await RunProcessAsync(ffmpegPath, args, null, s =>
-                {
-                    if (string.IsNullOrWhiteSpace(s)) return;
-                    var line = s.Trim();
-                    if (IsImportantProcessLine(line)) EnqueueLog(line, System.Drawing.Color.Red);
-                });
-                if (code != 0) throw new InvalidOperationException($"ffmpeg exited with {code}");
-                EnqueueLog($"{Path.GetFileName(oggOutputPath)} - DONE", System.Drawing.Color.Green);
-            }
-            finally
-            {
-                _conversionSemaphore.Release();
-            }
-        }
-
-        private static bool IsImportantProcessLine(string line)
-        {
-            var lower = line.ToLowerInvariant();
-            if (lower.Contains("frame=") || lower.Contains("fps=") || lower.Contains("size=") || lower.Contains("time=") || lower.Contains("bitrate=") || lower.Contains("speed=") || lower.Contains("progress")) return false;
-            if (lower.Contains("active code page")) return false;
-            if (lower.Contains("error") || lower.Contains("failed") || lower.Contains("unsupported")) return true;
-            if (line.StartsWith("WARNING", StringComparison.OrdinalIgnoreCase)) return true;
-            if (line.StartsWith("Error", StringComparison.OrdinalIgnoreCase)) return true;
-            return false;
-        }
-
-        public async Task ProcessWemAsync(byte[] data, string path)
-        {
-            EnsureParentDirectory(path);
-
-            var rel = Path.GetRelativePath(AppVariables.OutputDirectoryWem, path).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            if (string.IsNullOrEmpty(rel)) rel = Path.GetFileName(path);
-
-            var md = GetHashFromBytes(data);
-            var nowDate = DateTime.Now.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture);
-
-            if (_checksumIndex is not null && _checksumIndex.TryGetValue(rel, out var existing))
-            {
-                if (!string.IsNullOrEmpty(existing.Hash) && existing.Hash == md)
-                {
-                    EnqueueLog($"{Path.GetFileName(rel)} - SKIPPED (already processed)", System.Drawing.Color.Gray);
-                    return;
-                }
-            }
-
-            await File.WriteAllBytesAsync(path, data);
-
-            try
-            {
-                _checksumIndex ??= new ConcurrentDictionary<string, (string, string)>();
-                _checksumIndex[rel] = (md, nowDate);
-            }
-            catch { }
-
-            if (AppVariables.ExportOgg || AppVariables.ExportWav)
-            {
-                var wavPath = path.Replace(AppVariables.OutputDirectoryWem, AppVariables.OutputDirectoryWav).Replace(".wem", ".wav");
-                await ConvertWemBytesToWavFileAsync(data, wavPath);
-
-                if (AppVariables.ExportOgg)
-                {
-                    var oggPath = wavPath.Replace(AppVariables.OutputDirectoryWav, AppVariables.OutputDirectoryOgg).Replace(".wav", ".ogg");
-                    await ConvertWavFileToOggAsync(wavPath, oggPath);
-                }
-            }
-        }
-
-        // Helper used by multiple processing functions
-        private static void EnsureParentDirectory(string path)
-        {
-            try
-            {
-                var dir = Path.GetDirectoryName(path);
-                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-                    Directory.CreateDirectory(dir);
-            }
-            catch { }
-        }
-
-        private static string GetHashFromBytes(byte[] data)
-        {
-            using var md5 = MD5.Create();
-            var checksumBytes = md5.ComputeHash(data);
-            return BitConverter.ToString(checksumBytes).Replace("-", "").ToLowerInvariant();
-        }
-
-        private string GetFileHash(string filePath)
-        {
-            using var md5 = MD5.Create();
-            using var stream = File.OpenRead(filePath);
-            var checksumBytes = md5.ComputeHash(stream);
-            return BitConverter.ToString(checksumBytes).Replace("-", "").ToLowerInvariant();
-        }
-
-        // Major file processing pipeline entry used by ExportButton_Click
-        private async Task ConvertInputFileAsync(string filepath)
-        {
-            await _fileProcessingSemaphore.WaitAsync();
-            try
-            {
-                var data = await File.ReadAllBytesAsync(filepath);
-                switch (data.DetermineFileExtension())
-                {
-                    case ".pck":
-                        await ProcessPckAsync(data, filepath);
-                        break;
-                    case ".bnk":
-                        await ProcessBnkAsync(data, filepath);
-                        break;
-                    case ".chk":
-                        await ProcessCHKAsync(data, filepath);
-                        break;
-                    case ".wem":
-                        var outPath = filepath.Replace(AppVariables.OutputDirectory, AppVariables.OutputDirectoryWem);
-                        EnsureParentDirectory(outPath);
-                        await ProcessWemAsync(data, outPath);
-                        break;
-                    default:
-                        break;
-                }
-            }
-            finally
-            {
-                _fileProcessingSemaphore.Release();
-            }
-        }
-
-        public async Task ProcessPckAsync(byte[] data, string filepath)
-        {
-            var pck = new Package(data);
-            var tasks = new List<Task>();
-
-            foreach (var entry in pck.BanksTable.Files)
-            {
-                var bnkData = pck.GetBytes(entry);
-                tasks.Add(ProcessPckBnkAsync(bnkData, entry, filepath));
-            }
-            foreach (var entry in pck.ExternalsTable.Files)
-            {
-                var extData = pck.GetBytes(entry);
-                tasks.Add(ProcessPckExternalAsync(extData, entry, filepath));
-            }
-            foreach (var entry in pck.StreamsTable.Files)
-            {
-                var streamData = pck.GetBytes(entry);
-                tasks.Add(ProcessPckStreamAsync(streamData, entry, filepath));
-            }
-
-            await Task.WhenAll(tasks);
-        }
-
-        public async Task ProcessPckBnkAsync(byte[] data, FileTable.FileEntry entry, string filepath)
-        {
-            var bnk = new Bank(data);
-            bnk.Package = entry.Parent.Parent;
-            bnk.Language = entry.GetLanguage();
-
-            if (bnk.DIDXChunk is not null && bnk.DATAChunk is not null)
-            {
-                var tasks = new List<Task>();
-                foreach (var fileEntryList in bnk.DIDXChunk.Files.Values)
-                {
-                    foreach (var file in fileEntryList)
-                    {
-                        var wemData = bnk.DATAChunk.GetFile(file);
-                        tasks.Add(ProcessPckBnkWemAsync(wemData, file, bnk.Header, filepath));
-                    }
-                }
-                await Task.WhenAll(tasks);
-            }
-        }
-
-        public async Task ProcessPckBnkWemAsync(byte[] data, DataIndexChunk.FileEntry entry, BankHeader header, string filepath)
-        {
-            var ext = data.DetermineFileExtension();
-            var wemPath = GetPckBnkWemOutputPath(entry, header, OutputFormat.Wem);
-            EnsureParentDirectory(wemPath);
-            if (ext == ".wem")
-            {
-                await ProcessWemAsync(data, wemPath);
-            }
-            else if (ext == ".wav")
-            {
-                var wavPath = GetPckBnkWemOutputPath(entry, header, OutputFormat.Wav);
-                EnsureParentDirectory(wavPath);
-                await File.WriteAllBytesAsync(wavPath, data);
-                if (AppVariables.ExportOgg)
-                {
-                    var oggPath = wavPath.Replace(AppVariables.OutputDirectoryWav, AppVariables.OutputDirectoryOgg).Replace(".wav", ".ogg");
-                    await ConvertWavFileToOggAsync(wavPath, oggPath);
-                }
-            }
-            else
-            {
-                await File.WriteAllBytesAsync(wemPath, data);
-            }
-        }
-
-        public async Task ProcessPckExternalAsync(byte[] data, FileTable.FileEntry entry, string filepath)
-        {
-            var ext = data.DetermineFileExtension();
-            if (ext == ".wem")
-            {
-                var wemPath = GetPckExternalOutputPath(filepath, entry, OutputFormat.Wem);
-                EnsureParentDirectory(wemPath);
-                await ProcessWemAsync(data, wemPath);
-                if (AppVariables.ExportWav || AppVariables.ExportOgg)
-                {
-                    var wavPath = wemPath.Replace(AppVariables.OutputDirectoryWem, AppVariables.OutputDirectoryWav).Replace(".wem", ".wav");
-                    await ConvertWemBytesToWavFileAsync(data, wavPath);
-                    if (AppVariables.ExportOgg)
-                    {
-                        var oggPath = wavPath.Replace(AppVariables.OutputDirectoryWav, AppVariables.OutputDirectoryOgg).Replace(".wav", ".ogg");
-                        await ConvertWavFileToOggAsync(wavPath, oggPath);
-                    }
-                }
-            }
-            else if (ext == ".wav")
-            {
-                var wavPath = GetPckExternalOutputPath(filepath, entry, OutputFormat.Wav);
-                EnsureParentDirectory(wavPath);
-                await File.WriteAllBytesAsync(wavPath, data);
-                if (AppVariables.ExportOgg)
-                {
-                    var oggPath = wavPath.Replace(AppVariables.OutputDirectoryWav, AppVariables.OutputDirectoryOgg).Replace(".wav", ".ogg");
-                    await ConvertWavFileToOggAsync(wavPath, oggPath);
-                }
-            }
-            else
-            {
-                var path = GetPckExternalOutputPath(filepath, entry, OutputFormat.Wem);
-                EnsureParentDirectory(path);
-                await File.WriteAllBytesAsync(path, data);
-            }
-        }
-
-        public async Task ProcessPckStreamAsync(byte[] data, FileTable.FileEntry entry, string filepath)
-        {
-            var ext = data.DetermineFileExtension();
-            if (ext == ".wem")
-            {
-                var wemPath = GetPckStreamOutputPath(entry, OutputFormat.Wem);
-                EnsureParentDirectory(wemPath);
-                await ProcessWemAsync(data, wemPath);
-                if (AppVariables.ExportWav || AppVariables.ExportOgg)
-                {
-                    var wavPath = wemPath.Replace(AppVariables.OutputDirectoryWem, AppVariables.OutputDirectoryWav).Replace(".wem", ".wav");
-                    await ConvertWemBytesToWavFileAsync(data, wavPath);
-                    if (AppVariables.ExportOgg)
-                    {
-                        var oggPath = wavPath.Replace(AppVariables.OutputDirectoryWav, AppVariables.OutputDirectoryOgg).Replace(".wav", ".ogg");
-                        await ConvertWavFileToOggAsync(wavPath, oggPath);
-                    }
-                }
-            }
-            else if (ext == ".wav")
-            {
-                var wavPath = GetPckStreamOutputPath(entry, OutputFormat.Wav);
-                EnsureParentDirectory(wavPath);
-                await File.WriteAllBytesAsync(wavPath, data);
-                if (AppVariables.ExportOgg)
-                {
-                    var oggPath = wavPath.Replace(AppVariables.OutputDirectoryWav, AppVariables.OutputDirectoryOgg).Replace(".wav", ".ogg");
-                    await ConvertWavFileToOggAsync(wavPath, oggPath);
-                }
-            }
-            else
-            {
-                var path = GetPckStreamOutputPath(entry, OutputFormat.Wem);
-                EnsureParentDirectory(path);
-                await File.WriteAllBytesAsync(path, data);
-            }
-        }
-
-        public async Task ProcessBnkAsync(byte[] data, string filepath)
-        {
-            var bnk = new Bank(data);
-
-            if (bnk.DIDXChunk is not null && bnk.DATAChunk is not null)
-            {
-                var tasks = new List<Task>();
-                foreach (var fileEntryList in bnk.DIDXChunk.Files.Values)
-                {
-                    foreach (var file in fileEntryList)
-                    {
-                        var wemData = bnk.DATAChunk.GetFile(file);
-                        tasks.Add(ProcessPckBnkWemAsync(wemData, file, bnk.Header, filepath));
-                    }
-                }
-                await Task.WhenAll(tasks);
-            }
-        }
-
-        public async Task ProcessCHKAsync(byte[] data, string filepath)
-        {
-            static uint Key(uint seed)
-            {
-                uint temp = unchecked(((seed & 0xFF) ^ 0x9C5A0B29) * 81861667);
-                temp = unchecked((temp ^ (seed >> 8) & 0xFF) * 81861667);
-                temp = unchecked((temp ^ (seed >> 16) & 0xFF) * 81861667);
-                temp = unchecked((temp ^ (seed >> 24) & 0xFF) * 81861667);
-                return temp;
-            }
-
-            static void Decrypt(byte[] data, int offset, int count, uint seed)
-            {
-                uint keySeed = seed;
-
-                int dataIndex = offset;
-                int remaining = count;
-
-                // body
-                int nBlocks = remaining / 4;
-                for (int i = 0; i < nBlocks; i++)
-                {
-                    uint keyValue = Key(keySeed);
-
-                    uint dataValue =
-                        (uint)(data[dataIndex]
-                        | (data[dataIndex + 1] << 8)
-                        | (data[dataIndex + 2] << 16)
-                        | (data[dataIndex + 3] << 24));
-
-                    dataValue ^= keyValue;
-
-                    data[dataIndex] = (byte)(dataValue & 0xFF);
-                    data[dataIndex + 1] = (byte)((dataValue >> 8) & 0xFF);
-                    data[dataIndex + 2] = (byte)((dataValue >> 16) & 0xFF);
-                    data[dataIndex + 3] = (byte)((dataValue >> 24) & 0xFF);
-
-                    dataIndex += 4;
-                    keySeed++;
-                }
-
-                // tail
-                int trailing = remaining & 3;
-                if (trailing > 0)
-                {
-                    uint keyValue = Key(keySeed);
-                    for (int i = 0; i < trailing; i++)
-                    {
-                        data[dataIndex] ^= (byte)((keyValue >> (i * 8)) & 0xFF);
-                        dataIndex++;
-                    }
-                }
-            }
-
-            void DecryptHeader(byte[] header, int headerSize) => Decrypt(header, 12, headerSize - 4, (uint)headerSize);
-            void DecryptWem(byte[] wemData, uint wemId) => Decrypt(wemData, 0, wemData.Length, wemId);
-
-            using var ms = new MemoryStream(data);
-            using var br = new BinaryReader(ms);
-
-            ms.Seek(4, SeekOrigin.Begin);
-            int headerSize = br.ReadInt32();
-            EnqueueLog($"{headerSize}");
-
-            ms.Seek(0, SeekOrigin.Begin);
-            byte[] header = br.ReadBytes(headerSize+8);
-            DecryptHeader(header, headerSize);
-
-            var decData = new List<byte>();
-            decData.AddRange(header);
-            decData.AddRange(data.Skip(headerSize + 8));
-
-            var decArray = decData.ToArray();
-            decArray[0] = (byte)'A';
-            decArray[1] = (byte)'K';
-            decArray[2] = (byte)'P';
-            decArray[3] = (byte)'K';
-            BitConverter.GetBytes(1).CopyTo(decArray, 8);
-
-            var pck = new Package(data);
-            var tasks = new List<Task>();
-
-            foreach (var entry in pck.BanksTable.Files)
-            {
-                var bnkData = pck.GetBytes(entry);
-                tasks.Add(ProcessPckBnkAsync(bnkData, entry, filepath));
-            }
-            foreach (var entry in pck.ExternalsTable.Files)
-            {
-                var extData = pck.GetBytes(entry);
-                DecryptWem(extData, (uint)entry.FileId); // doesn't work
-                tasks.Add(ProcessPckExternalAsync(extData, entry, filepath));
-            }
-            foreach (var entry in pck.StreamsTable.Files)
-            {
-                var streamData = pck.GetBytes(entry);
-                DecryptWem(streamData, (uint)entry.FileId); // doesn't work
-                tasks.Add(ProcessPckStreamAsync(streamData, entry, filepath));
-            }
-
-            await Task.WhenAll(tasks);
-        }
-
-        private async Task ProcessCHKWemAsync(byte[] data, uint wemId, string sourceFilePath)
-        {
-            var wemPath = Path.Combine(AppVariables.OutputDirectoryWem, "vfs", Path.GetFileNameWithoutExtension(sourceFilePath), $"{wemId}.wem");
-
-            EnsureParentDirectory(wemPath);
-
-            await ProcessWemAsync(data, wemPath);
-
-            if (AppVariables.ExportWav || AppVariables.ExportOgg)
-            {
-                var wavPath = wemPath
-                    .Replace(AppVariables.OutputDirectoryWem, AppVariables.OutputDirectoryWav)
-                    .Replace(".wem", ".wav");
-
-                await ConvertWemBytesToWavFileAsync(data, wavPath);
-
-                if (AppVariables.ExportOgg)
-                {
-                    var oggPath = wavPath
-                        .Replace(AppVariables.OutputDirectoryWav, AppVariables.OutputDirectoryOgg)
-                        .Replace(".wav", ".ogg");
-
-                    await ConvertWavFileToOggAsync(wavPath, oggPath);
-                }
-            }
-        }
-
-        #endregion
-
-        #region Path builders & misc helpers (ported names)
-
-        public enum OutputFormat { Wem, Wav, Ogg }
-
-        // Thread-safe checkbox read helper
-        private bool IsCheckedSafe(CheckBox cb)
-        {
-            try
-            {
-                if (cb == null) return false;
-                if (Dispatcher.CheckAccess()) return cb.IsChecked == true;
-                return Dispatcher.Invoke(() => cb.IsChecked == true);
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        public string GetPckExternalName(ulong fileId, out bool hasLanguage)
-        {
-            var name = fileId.ToString("x16");
-            hasLanguage = KnownFilenames.TryGetValue(name, out var full);
-            if (hasLanguage)
-                return Path.Join(Path.GetDirectoryName(full) ?? string.Empty, Path.GetFileNameWithoutExtension(full));
-            return name;
-        }
-
-        public string GetPckStreamName(ulong fileId, out bool hasLanguage)
-        {
-            hasLanguage = false;
-            if (IsCheckedSafe(LegacyCheckBox))
-                return fileId.ToString("d");
-            return fileId.ToString("x8");
-        }
-
-        public string GetPckBnkWemName(ulong fileId, out bool hasLanguage)
-        {
-            var name = fileId.ToString("x8");
-            if (IsCheckedSafe(LegacyCheckBox))
-            {
-                name = fileId.ToString("d");
-                hasLanguage = KnownEvents.TryGetValue(name, out var full);
-                if (hasLanguage)
-                    return Path.Join(Path.GetDirectoryName(full) ?? string.Empty, Path.GetFileNameWithoutExtension(full));
-            }
-            else
-            {
-                hasLanguage = false;
-            }
-            return name;
-        }
-
-        public string GetPckExternalOutputPath(string filepath, FileTable.FileEntry entry, OutputFormat format)
-        {
-            var outputPath = AppVariables.OutputDirectoryWem;
-            if (IsCheckedSafe(SplitOutputCheckBox))
-            {
-                var pckName = Path.GetFileNameWithoutExtension(filepath);
-                outputPath = Path.Join(outputPath, pckName);
-            }
-
-            var name = GetPckExternalName(entry.FileId, out var hasLanguage);
-
-            if (!hasLanguage && (IsCheckedSafe(NoLangCheckBox) != true || entry.Parent.Parent.LanguagesMap.Languages.Count > 1))
-            {
-                var language = entry.GetLanguage();
-                outputPath = Path.Join(outputPath, language);
-            }
-            return Path.Join(outputPath, name + GetFileExtension(format));
-        }
-
-        public string GetPckStreamOutputPath(FileTable.FileEntry entry, OutputFormat format)
-        {
-            var outputPath = AppVariables.OutputDirectoryWem;
-            if (IsCheckedSafe(SplitOutputCheckBox))
-            {
-                foreach (var filepath in AppVariables.InputFiles)
-                {
-                    var pckName = Path.GetFileNameWithoutExtension(filepath);
-                    outputPath = Path.Join(outputPath, pckName);
-                }
-            }
-
-            var name = GetPckStreamName(entry.FileId, out var hasLanguage);
-
-            if (!hasLanguage && (IsCheckedSafe(NoLangCheckBox) != true || entry.Parent.Parent.LanguagesMap.Languages.Count > 1))
-            {
-                var language = entry.GetLanguage();
-                outputPath = Path.Join(outputPath, language);
-            }
-
-            return Path.Join(outputPath, name + GetFileExtension(format));
-        }
-
-        public string GetPckBnkWemOutputPath(DataIndexChunk.FileEntry entry, BankHeader header, OutputFormat format)
-        {
-            var outputPath = AppVariables.OutputDirectoryWem;
-            if (IsCheckedSafe(SplitOutputCheckBox))
-            {
-                foreach (var filepath in AppVariables.InputFiles)
-                {
-                    var pckName = Path.GetFileNameWithoutExtension(filepath);
-                    outputPath = Path.Join(outputPath, pckName);
-                }
-            }
-
-            if (IsCheckedSafe(BankedOutputCheckBox))
-            {
-                outputPath = Path.Join(outputPath, header.SoundBankId.ToString());
-            }
-
-            var name = GetPckBnkWemName(entry.Id, out var hasLanguage);
-
-            if (!hasLanguage && (IsCheckedSafe(NoLangCheckBox) != true || header.Parent.Package.LanguagesMap.Languages.Count > 1))
-            {
-                var language = header.Parent.Language;
-                outputPath = Path.Join(outputPath, language);
-            }
-
-            return Path.Join(outputPath, name + GetFileExtension(format));
-        }
-
-        public string GetFileExtension(OutputFormat format)
-        {
-            return format switch
-            {
-                OutputFormat.Ogg => ".ogg",
-                OutputFormat.Wav => ".wav",
-                OutputFormat.Wem => ".wem",
-                _ => ".bin"
-            };
-        }
-
-        #endregion
-
-        #region Checksum index persistence & postprocessing
-
-        private void LoadChecksumIndex()
-        {
-            _checksumIndex = new ConcurrentDictionary<string, (string Hash, string Date)>();
-            string directoryName = Path.GetFileName(AppVariables.OutputDirectory);
-            string processedFilesFilePath = Path.Combine("Logging\\", directoryName + "-WEM_Checksums.csv");
-            if (!File.Exists(processedFilesFilePath)) return;
-            foreach (var line in File.ReadLines(processedFilesFilePath))
-            {
-                if (string.IsNullOrWhiteSpace(line)) continue;
-                var parts = line.Split(',');
-                if (parts.Length >= 3)
-                {
-                    var hash = parts[1];
-                    var date = parts[^1];
-                    _checksumIndex[parts[0]] = (hash, date);
-                }
-            }
-        }
-
-        private void SaveChecksumIndex()
-        {
-            if (_checksumIndex is null) return;
-            string directoryName = Path.GetFileName(AppVariables.OutputDirectory);
-            string processedFilesFilePath = Path.Combine("Logging\\", directoryName + "-WEM_Checksums.csv");
-            var lines = _checksumIndex.Select(kv => kv.Key + "," + kv.Value.Hash + "," + kv.Value.Date);
-            Directory.CreateDirectory("Logging\\");
-            File.WriteAllLines(processedFilesFilePath, lines.OrderBy(l => l));
-        }
-
-        private void GenerateMD5Checksums()
-        {
-            string directoryName = Path.GetFileName(AppVariables.OutputDirectory);
-            string processedFilesFilePath = Path.Combine("Logging\\", directoryName + "-WEM_Checksums.csv");
-
-            var processedFileHashes = new ConcurrentDictionary<string, (string Hash, string Date)>();
-            bool anyChange = false;
-
-            if (!Directory.Exists("Logging\\")) Directory.CreateDirectory("Logging\\");
-
-            if (File.Exists(processedFilesFilePath))
-            {
-                foreach (var line in File.ReadLines(processedFilesFilePath))
-                {
-                    if (string.IsNullOrWhiteSpace(line)) continue;
-                    var parts = line.Split(',');
-                    if (parts.Length >= 3)
-                    {
-                        var date = parts[^1];
-                        var hash = parts[1];
-                        processedFileHashes[parts[0]] = (hash, date);
-                    }
-                }
-            }
-
-            _checksumIndex ??= new ConcurrentDictionary<string, (string, string)>();
-            foreach (var kv in processedFileHashes)
-            {
-                _checksumIndex[kv.Key] = kv.Value;
-            }
-
-            var files = Directory.EnumerateFiles(AppVariables.OutputDirectoryWem, "*", SearchOption.AllDirectories);
-            var po = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2) };
-
-            Parallel.ForEach(files, po, file =>
-            {
-                try
-                {
-                    string fileName = Path.GetFileName(file);
-                    string folderPath = Path.GetDirectoryName(file) ?? string.Empty;
-                    string folderName = folderPath.Length > AppVariables.OutputDirectoryWem.Length ? folderPath.Substring(AppVariables.OutputDirectoryWem.Length) : string.Empty;
-                    if (folderName.StartsWith(Path.DirectorySeparatorChar.ToString()) || folderName.StartsWith(Path.AltDirectorySeparatorChar.ToString()))
-                        folderName = folderName.Substring(1);
-                    string concatenatedFolders = string.Join("\\", folderName.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Where(f => !string.IsNullOrEmpty(f)));
-                    string outputLine = string.IsNullOrEmpty(concatenatedFolders) ? fileName : (concatenatedFolders + "\\" + fileName);
-
-                    var fileHash = GetFileHash(file);
-                    if (processedFileHashes.TryGetValue(outputLine, out var existing))
-                    {
-                        if (existing.Hash != fileHash)
-                        {
-                            processedFileHashes[outputLine] = (fileHash, DateTime.Now.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture));
-                            EnqueueLog("> MD5-Checksum Changed: " + outputLine, System.Drawing.Color.Orange);
-                            anyChange = true;
-                        }
-                        else
-                        {
-                            File.Delete(file);
-                            EnqueueLog("> File Deleted (MD5-Checksum Matched): " + outputLine, System.Drawing.Color.Red);
-                        }
-                    }
-                    else
-                    {
-                        processedFileHashes[outputLine] = (fileHash, DateTime.Now.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture));
-                        EnqueueLog("> New MD5-Checksum Generated: " + outputLine, System.Drawing.Color.Green);
-                        anyChange = true;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    EnqueueLog("Error hashing file: " + ex.Message, System.Drawing.Color.Red);
-                }
-            });
-
-            if (anyChange)
-            {
-                var lines = processedFileHashes.Select(kv => kv.Key + "," + kv.Value.Hash + "," + kv.Value.Date);
-                File.WriteAllLines(processedFilesFilePath, lines.OrderBy(l => l));
-            }
-        }
-
-        #endregion
-
-        #region Export orchestration (wired to Export button)
 
         private async void ExportButton_Click(object sender, RoutedEventArgs e)
         {
@@ -1208,6 +355,9 @@ namespace WWiseToolsWPF.Views
             }
         }
 
+        #endregion
+
+        #region KILL SWITCH
         private void AbortAll()
         {
             isAborted = true;
@@ -1218,6 +368,864 @@ namespace WWiseToolsWPF.Views
             }
             EnqueueLog("Abort requested.", System.Drawing.Color.Orange);
         }
+        #endregion
+
+        #region Logging (thread-safe)
+
+        private void EnqueueLog(string text, System.Drawing.Color? color = null)
+        {
+            _logQueue.Enqueue((text, color));
+        }
+
+        private void FlushLogsToUI()
+        {
+            if (_logQueue.IsEmpty) return;
+
+            var entries = new List<(string Text, System.Drawing.Color? Color)>();
+            while (_logQueue.TryDequeue(out var e))
+                entries.Add(e);
+
+            if (entries.Count == 0) return;
+
+            Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
+            {
+                foreach (var e in entries)
+                {
+                    AppendStatusText(e.Text, e.Color);
+                }
+
+                // Defer scrolling until AFTER layout/render
+                Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+                {
+                    StatusTextBox.ScrollToEnd();
+                }));
+            }));
+        }
+
+        private void AppendStatusText(string text, System.Drawing.Color? color = null)
+        {
+            var paragraph = new Paragraph { Margin = new Thickness(0) };
+            var run = new Run(text);
+            if (color.HasValue)
+            {
+                run.Foreground = new SolidColorBrush(ConvertDrawingColor(color.Value));
+            }
+            paragraph.Inlines.Add(run);
+            StatusTextBox.Document.Blocks.Add(paragraph);
+        }
+
+        private static System.Windows.Media.Color ConvertDrawingColor(System.Drawing.Color c)
+        {
+            return System.Windows.Media.Color.FromArgb(c.A, c.R, c.G, c.B);
+        }
+
+        private static bool IsImportantProcessLine(string line)
+        {
+            var lower = line.ToLowerInvariant();
+            if (lower.Contains("frame=") || lower.Contains("fps=") || lower.Contains("size=") || lower.Contains("time=") || lower.Contains("bitrate=") || lower.Contains("speed=") || lower.Contains("progress")) return false;
+            if (lower.Contains("active code page")) return false;
+            if (lower.Contains("error") || lower.Contains("failed") || lower.Contains("unsupported")) return true;
+            if (line.StartsWith("WARNING", StringComparison.OrdinalIgnoreCase)) return true;
+            if (line.StartsWith("Error", StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
+        }
+
+        #endregion
+
+        #region General Helpers
+        private static void EnsureParentDirectory(string path)
+        {
+            try
+            {
+                var dir = Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                    Directory.CreateDirectory(dir);
+            }
+            catch { }
+        }
+
+        private bool IsCheckedSafe(CheckBox cb)
+        {
+            try
+            {
+                if (cb == null) return false;
+                if (Dispatcher.CheckAccess()) return cb.IsChecked == true;
+                return Dispatcher.Invoke(() => cb.IsChecked == true);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public string GetFileExtension(OutputFormat format)
+        {
+            return format switch
+            {
+                OutputFormat.Ogg => ".ogg",
+                OutputFormat.Wav => ".wav",
+                OutputFormat.Wem => ".wem",
+                _ => ".bin"
+            };
+        }
+
+        private void UpdateCanExportStatus()
+        {
+            bool canExport = true;
+            AppVariables.ExportWem = WEMExportRadioButton.IsChecked == true;
+            AppVariables.ExportWav = WAVExportRadioButton.IsChecked == true;
+            AppVariables.ExportOgg = OGGExportRadioButton.IsChecked == true;
+
+            if (!AppVariables.ExportWem && !AppVariables.ExportWav && !AppVariables.ExportOgg)
+                canExport = false;
+
+            if (AppVariables.InputFiles.Count == 0 || !Directory.Exists(OutputDirectoryTextBox.Text))
+                canExport = false;
+
+            if (!Directory.Exists(Path.Combine("Tools", "vgmstream-win")))
+            {
+                canExport = false;
+                EnqueueLog("Please download VGMStream.", System.Drawing.Color.Red);
+            }
+            if (!Directory.Exists(Path.Combine("Tools", "ffmpeg-master-latest-win64-gpl-shared")))
+            {
+                canExport = false;
+                EnqueueLog("Please download FFmpeg.", System.Drawing.Color.Red);
+            }
+
+            ExportButton.IsEnabled = canExport;
+
+            if (canExport)
+                EnqueueLog("Ready to Export", System.Drawing.Color.Green);
+        }
+
+        private Task<int> RunProcessAsync(string fileName, string arguments, Action<string>? onOutput = null, Action<string>? onError = null)
+        {
+            var tcs = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+            try
+            {
+                var psi = new ProcessStartInfo(fileName, arguments)
+                {
+                    UseShellExecute = false,
+                    RedirectStandardOutput = onOutput != null,
+                    RedirectStandardError = onError != null,
+                    CreateNoWindow = true
+                };
+
+                var proc = new Process { StartInfo = psi, EnableRaisingEvents = true };
+
+                if (onOutput != null)
+                {
+                    proc.OutputDataReceived += (s, e) => { if (e.Data != null) onOutput(e.Data); };
+                }
+                if (onError != null)
+                {
+                    proc.ErrorDataReceived += (s, e) => { if (e.Data != null) onError(e.Data); };
+                }
+
+                proc.Exited += (s, e) =>
+                {
+                    try { tcs.TrySetResult(proc.ExitCode); }
+                    catch { }
+                    _runningProcesses.TryRemove(proc.Id, out _);
+                    proc.Dispose();
+                };
+
+                proc.Start();
+
+                try { _runningProcesses.TryAdd(proc.Id, proc); } catch { }
+
+                // Ensure kill on cancellation
+                try
+                {
+                    if (_abortCts is not null)
+                    {
+                        var token = _abortCts.Token;
+                        token.Register(() =>
+                        {
+                            try { if (!proc.HasExited) proc.Kill(entireProcessTree: true); } catch { }
+                        });
+                    }
+                }
+                catch { }
+
+                if (onOutput != null) proc.BeginOutputReadLine();
+                if (onError != null) proc.BeginErrorReadLine();
+            }
+            catch (Exception ex)
+            {
+                tcs.TrySetException(ex);
+            }
+            return tcs.Task;
+        }
+
+        #endregion
+
+        #region MD5 Checksum
+
+        private static string GetHashFromBytes(byte[] data)
+        {
+            using var md5 = MD5.Create();
+            var checksumBytes = md5.ComputeHash(data);
+            return BitConverter.ToString(checksumBytes).Replace("-", "").ToLowerInvariant();
+        }
+
+        private string GetFileHash(string filePath)
+        {
+            using var md5 = MD5.Create();
+            using var stream = File.OpenRead(filePath);
+            var checksumBytes = md5.ComputeHash(stream);
+            return BitConverter.ToString(checksumBytes).Replace("-", "").ToLowerInvariant();
+        }
+
+        private void LoadChecksumIndex()
+        {
+            _checksumIndex = new ConcurrentDictionary<string, (string Hash, string Date)>();
+            string directoryName = Path.GetFileName(AppVariables.OutputDirectory);
+            string processedFilesFilePath = Path.Combine("Logging\\", directoryName + "-WEM_Checksums.csv");
+            if (!File.Exists(processedFilesFilePath)) return;
+            foreach (var line in File.ReadLines(processedFilesFilePath))
+            {
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                var parts = line.Split(',');
+                if (parts.Length >= 3)
+                {
+                    var hash = parts[1];
+                    var date = parts[^1];
+                    _checksumIndex[parts[0]] = (hash, date);
+                }
+            }
+        }
+
+        private void SaveChecksumIndex()
+        {
+            if (_checksumIndex is null) return;
+            string directoryName = Path.GetFileName(AppVariables.OutputDirectory);
+            string processedFilesFilePath = Path.Combine("Logging\\", directoryName + "-WEM_Checksums.csv");
+            var lines = _checksumIndex.Select(kv => kv.Key + "," + kv.Value.Hash + "," + kv.Value.Date);
+            Directory.CreateDirectory("Logging\\");
+            File.WriteAllLines(processedFilesFilePath, lines.OrderBy(l => l));
+        }
+
+        private void GenerateMD5Checksums()
+        {
+            string directoryName = Path.GetFileName(AppVariables.OutputDirectory);
+            string processedFilesFilePath = Path.Combine("Logging\\", directoryName + "-WEM_Checksums.csv");
+
+            var processedFileHashes = new ConcurrentDictionary<string, (string Hash, string Date)>();
+            bool anyChange = false;
+
+            if (!Directory.Exists("Logging\\")) Directory.CreateDirectory("Logging\\");
+
+            if (File.Exists(processedFilesFilePath))
+            {
+                foreach (var line in File.ReadLines(processedFilesFilePath))
+                {
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+                    var parts = line.Split(',');
+                    if (parts.Length >= 3)
+                    {
+                        var date = parts[^1];
+                        var hash = parts[1];
+                        processedFileHashes[parts[0]] = (hash, date);
+                    }
+                }
+            }
+
+            _checksumIndex ??= new ConcurrentDictionary<string, (string, string)>();
+            foreach (var kv in processedFileHashes)
+            {
+                _checksumIndex[kv.Key] = kv.Value;
+            }
+
+            var files = Directory.EnumerateFiles(AppVariables.OutputDirectoryWem, "*", SearchOption.AllDirectories);
+            var po = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2) };
+
+            Parallel.ForEach(files, po, file =>
+            {
+                try
+                {
+                    string fileName = Path.GetFileName(file);
+                    string folderPath = Path.GetDirectoryName(file) ?? string.Empty;
+                    string folderName = folderPath.Length > AppVariables.OutputDirectoryWem.Length ? folderPath.Substring(AppVariables.OutputDirectoryWem.Length) : string.Empty;
+                    if (folderName.StartsWith(Path.DirectorySeparatorChar.ToString()) || folderName.StartsWith(Path.AltDirectorySeparatorChar.ToString()))
+                        folderName = folderName.Substring(1);
+                    string concatenatedFolders = string.Join("\\", folderName.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Where(f => !string.IsNullOrEmpty(f)));
+                    string outputLine = string.IsNullOrEmpty(concatenatedFolders) ? fileName : (concatenatedFolders + "\\" + fileName);
+
+                    var fileHash = GetFileHash(file);
+                    if (processedFileHashes.TryGetValue(outputLine, out var existing))
+                    {
+                        if (existing.Hash != fileHash)
+                        {
+                            processedFileHashes[outputLine] = (fileHash, DateTime.Now.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture));
+                            EnqueueLog("> MD5-Checksum Changed: " + outputLine, System.Drawing.Color.Orange);
+                            anyChange = true;
+                        }
+                        else
+                        {
+                            File.Delete(file);
+                            EnqueueLog("> File Deleted (MD5-Checksum Matched): " + outputLine, System.Drawing.Color.Red);
+                        }
+                    }
+                    else
+                    {
+                        processedFileHashes[outputLine] = (fileHash, DateTime.Now.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture));
+                        EnqueueLog("> New MD5-Checksum Generated: " + outputLine, System.Drawing.Color.Green);
+                        anyChange = true;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    EnqueueLog("Error hashing file: " + ex.Message, System.Drawing.Color.Red);
+                }
+            });
+
+            if (anyChange)
+            {
+                var lines = processedFileHashes.Select(kv => kv.Key + "," + kv.Value.Hash + "," + kv.Value.Date);
+                File.WriteAllLines(processedFilesFilePath, lines.OrderBy(l => l));
+            }
+        }
+
+        #endregion
+
+        #region Path Builders
+
+        public string GetPckExternalName(ulong fileId, out bool hasLanguage)
+        {
+            var name = fileId.ToString("x16");
+            hasLanguage = KnownFilenames.TryGetValue(name, out var full);
+            if (hasLanguage)
+                return Path.Join(Path.GetDirectoryName(full) ?? string.Empty, Path.GetFileNameWithoutExtension(full));
+            return name;
+        }
+
+        public string GetPckStreamName(ulong fileId, out bool hasLanguage)
+        {
+            hasLanguage = false;
+            if (IsCheckedSafe(LegacyCheckBox))
+                return fileId.ToString("d");
+            return fileId.ToString("x8");
+        }
+
+        public string GetPckBnkWemName(ulong fileId, out bool hasLanguage)
+        {
+            var name = fileId.ToString("x8");
+            if (IsCheckedSafe(LegacyCheckBox))
+            {
+                name = fileId.ToString("d");
+                hasLanguage = KnownEvents.TryGetValue(name, out var full);
+                if (hasLanguage)
+                    return Path.Join(Path.GetDirectoryName(full) ?? string.Empty, Path.GetFileNameWithoutExtension(full));
+            }
+            else
+            {
+                hasLanguage = false;
+            }
+            return name;
+        }
+
+        public string GetPckExternalOutputPath(string filepath, FileTable.FileEntry entry, OutputFormat format)
+        {
+            var outputPath = AppVariables.OutputDirectoryWem;
+            if (IsCheckedSafe(SplitOutputCheckBox))
+            {
+                var pckName = Path.GetFileNameWithoutExtension(filepath);
+                outputPath = Path.Join(outputPath, pckName);
+            }
+
+            var name = GetPckExternalName(entry.FileId, out var hasLanguage);
+
+            if (!hasLanguage && (IsCheckedSafe(NoLangCheckBox) != true || entry.Parent.Parent.LanguagesMap.Languages.Count > 1))
+            {
+                var language = entry.GetLanguage();
+                outputPath = Path.Join(outputPath, language);
+            }
+            return Path.Join(outputPath, name + GetFileExtension(format));
+        }
+
+        public string GetPckStreamOutputPath(FileTable.FileEntry entry, OutputFormat format)
+        {
+            var outputPath = AppVariables.OutputDirectoryWem;
+            if (IsCheckedSafe(SplitOutputCheckBox))
+            {
+                foreach (var filepath in AppVariables.InputFiles)
+                {
+                    var pckName = Path.GetFileNameWithoutExtension(filepath);
+                    outputPath = Path.Join(outputPath, pckName);
+                }
+            }
+
+            var name = GetPckStreamName(entry.FileId, out var hasLanguage);
+
+            if (!hasLanguage && (IsCheckedSafe(NoLangCheckBox) != true || entry.Parent.Parent.LanguagesMap.Languages.Count > 1))
+            {
+                var language = entry.GetLanguage();
+                outputPath = Path.Join(outputPath, language);
+            }
+
+            return Path.Join(outputPath, name + GetFileExtension(format));
+        }
+
+        public string GetPckBnkWemOutputPath(DataIndexChunk.FileEntry entry, BankHeader header, OutputFormat format)
+        {
+            var outputPath = AppVariables.OutputDirectoryWem;
+            if (IsCheckedSafe(SplitOutputCheckBox))
+            {
+                foreach (var filepath in AppVariables.InputFiles)
+                {
+                    var pckName = Path.GetFileNameWithoutExtension(filepath);
+                    outputPath = Path.Join(outputPath, pckName);
+                }
+            }
+
+            if (IsCheckedSafe(BankedOutputCheckBox))
+            {
+                outputPath = Path.Join(outputPath, header.SoundBankId.ToString());
+            }
+
+            var name = GetPckBnkWemName(entry.Id, out var hasLanguage);
+
+            if (!hasLanguage && (IsCheckedSafe(NoLangCheckBox) != true || header.Parent.Package.LanguagesMap.Languages.Count > 1))
+            {
+                var language = header.Parent.Language;
+                outputPath = Path.Join(outputPath, language);
+            }
+
+            return Path.Join(outputPath, name + GetFileExtension(format));
+        }
+
+        #endregion
+
+        #region Export Pipeline
+        private async Task ConvertInputFileAsync(string filepath)
+        {
+            await _fileProcessingSemaphore.WaitAsync();
+            try
+            {
+                var data = await File.ReadAllBytesAsync(filepath);
+                switch (data.DetermineFileExtension())
+                {
+                    case ".pck":
+                        await ProcessPckAsync(data, filepath);
+                        break;
+                    case ".bnk":
+                        await ProcessBnkAsync(data, filepath);
+                        break;
+                    case ".chk":
+                        await ProcessCHKAsync(data, filepath);
+                        break;
+                    case ".wem":
+                        var outPath = filepath.Replace(AppVariables.OutputDirectory, AppVariables.OutputDirectoryWem);
+                        EnsureParentDirectory(outPath);
+                        await ProcessWemAsync(data, outPath);
+                        break;
+                    default:
+                        break;
+                }
+            }
+            finally
+            {
+                _fileProcessingSemaphore.Release();
+            }
+        }
+
+        //GENERAL PCK / UNENCRYPTED
+        public async Task ProcessPckAsync(byte[] data, string filepath)
+        {
+            var pck = new Package(data);
+            var tasks = new List<Task>();
+
+            foreach (var entry in pck.BanksTable.Files)
+            {
+                var bnkData = pck.GetBytes(entry);
+                tasks.Add(ProcessPckBnkAsync(bnkData, entry, filepath));
+            }
+            foreach (var entry in pck.ExternalsTable.Files)
+            {
+                var extData = pck.GetBytes(entry);
+                tasks.Add(ProcessPckExternalAsync(extData, entry, filepath));
+            }
+            foreach (var entry in pck.StreamsTable.Files)
+            {
+                var streamData = pck.GetBytes(entry);
+                tasks.Add(ProcessPckStreamAsync(streamData, entry, filepath));
+            }
+
+            await Task.WhenAll(tasks);
+        }
+
+        //GENERAL BNK / UNENCRYPTED
+        public async Task ProcessBnkAsync(byte[] data, string filepath)
+        {
+            var bnk = new Bank(data);
+
+            if (bnk.DIDXChunk is not null && bnk.DATAChunk is not null)
+            {
+                var tasks = new List<Task>();
+                foreach (var fileEntryList in bnk.DIDXChunk.Files.Values)
+                {
+                    foreach (var file in fileEntryList)
+                    {
+                        var wemData = bnk.DATAChunk.GetFile(file);
+                        tasks.Add(ProcessPckBnkWemAsync(wemData, file, bnk.Header, filepath));
+                    }
+                }
+                await Task.WhenAll(tasks);
+            }
+        }
+
+        //CHK / ENCRYPTED
+        public async Task ProcessCHKAsync(byte[] data, string filepath)
+        {
+            static uint Key(uint seed)
+            {
+                uint temp = unchecked(((seed & 0xFF) ^ 0x9C5A0B29) * 81861667);
+                temp = unchecked((temp ^ (seed >> 8) & 0xFF) * 81861667);
+                temp = unchecked((temp ^ (seed >> 16) & 0xFF) * 81861667);
+                temp = unchecked((temp ^ (seed >> 24) & 0xFF) * 81861667);
+                return temp;
+            }
+
+            static void Decrypt(byte[] data, int offset, int count, uint seed)
+            {
+                uint keySeed = seed;
+
+                int dataIndex = offset;
+                int remaining = count;
+
+                int nBlocks = remaining / 4;
+                for (int i = 0; i < nBlocks; i++)
+                {
+                    uint keyValue = Key(keySeed);
+
+                    uint dataValue =
+                        (uint)(data[dataIndex]
+                        | (data[dataIndex + 1] << 8)
+                        | (data[dataIndex + 2] << 16)
+                        | (data[dataIndex + 3] << 24));
+
+                    dataValue ^= keyValue;
+
+                    data[dataIndex] = (byte)(dataValue & 0xFF);
+                    data[dataIndex + 1] = (byte)((dataValue >> 8) & 0xFF);
+                    data[dataIndex + 2] = (byte)((dataValue >> 16) & 0xFF);
+                    data[dataIndex + 3] = (byte)((dataValue >> 24) & 0xFF);
+
+                    dataIndex += 4;
+                    keySeed++;
+                }
+
+                int trailing = remaining & 3;
+                if (trailing > 0)
+                {
+                    uint keyValue = Key(keySeed);
+                    for (int i = 0; i < trailing; i++)
+                    {
+                        data[dataIndex] ^= (byte)((keyValue >> (i * 8)) & 0xFF);
+                        dataIndex++;
+                    }
+                }
+            }
+
+            void DecryptHeader(byte[] header, int headerSize) => Decrypt(header, 12, headerSize - 4, (uint)headerSize);
+            void DecryptWem(byte[] wemData, uint wemId) => Decrypt(wemData, 0, wemData.Length, wemId);
+
+            using var ms = new MemoryStream(data);
+            using var br = new BinaryReader(ms);
+
+            ms.Seek(4, SeekOrigin.Begin);
+            int headerSize = br.ReadInt32();
+            EnqueueLog($"{headerSize}");
+
+            ms.Seek(0, SeekOrigin.Begin);
+            byte[] header = br.ReadBytes(headerSize + 8);
+            DecryptHeader(header, headerSize);
+
+            var decData = new List<byte>();
+            decData.AddRange(header);
+            decData.AddRange(data.Skip(headerSize + 8));
+
+            var decArray = decData.ToArray();
+            decArray[0] = (byte)'A';
+            decArray[1] = (byte)'K';
+            decArray[2] = (byte)'P';
+            decArray[3] = (byte)'K';
+            BitConverter.GetBytes(1).CopyTo(decArray, 8);
+
+            var pck = new Package(decArray);
+            var tasks = new List<Task>();
+
+            foreach (var entry in pck.BanksTable.Files)
+            {
+                var bnkData = pck.GetBytes(entry);
+                tasks.Add(ProcessPckBnkAsync(bnkData, entry, filepath));
+            }
+            foreach (var entry in pck.ExternalsTable.Files)
+            {
+                var extData = pck.GetBytes(entry);
+                DecryptWem(extData, (uint)entry.FileId); // doesn't work
+                tasks.Add(ProcessPckExternalAsync(extData, entry, filepath));
+            }
+            foreach (var entry in pck.StreamsTable.Files)
+            {
+                var streamData = pck.GetBytes(entry);
+                DecryptWem(streamData, (uint)entry.FileId); // doesn't work
+                tasks.Add(ProcessPckStreamAsync(streamData, entry, filepath));
+            }
+
+            await Task.WhenAll(tasks);
+        }
+
+        //BanksTable.Files
+        public async Task ProcessPckBnkAsync(byte[] data, FileTable.FileEntry entry, string filepath)
+        {
+            var bnk = new Bank(data);
+            bnk.Package = entry.Parent.Parent;
+            bnk.Language = entry.GetLanguage();
+
+            if (bnk.DIDXChunk is not null && bnk.DATAChunk is not null)
+            {
+                var tasks = new List<Task>();
+                foreach (var fileEntryList in bnk.DIDXChunk.Files.Values)
+                {
+                    foreach (var file in fileEntryList)
+                    {
+                        var wemData = bnk.DATAChunk.GetFile(file);
+                        tasks.Add(ProcessPckBnkWemAsync(wemData, file, bnk.Header, filepath));
+                    }
+                }
+                await Task.WhenAll(tasks);
+            }
+        }
+
+        //ExternalsTable.Files
+        public async Task ProcessPckExternalAsync(byte[] data, FileTable.FileEntry entry, string filepath)
+        {
+            var ext = data.DetermineFileExtension();
+            if (ext == ".wem")
+            {
+                var wemPath = GetPckExternalOutputPath(filepath, entry, OutputFormat.Wem);
+                EnsureParentDirectory(wemPath);
+                await ProcessWemAsync(data, wemPath);
+                if (AppVariables.ExportWav || AppVariables.ExportOgg)
+                {
+                    var wavPath = wemPath.Replace(AppVariables.OutputDirectoryWem, AppVariables.OutputDirectoryWav).Replace(".wem", ".wav");
+                    await ConvertWemBytesToWavFileAsync(data, wavPath);
+                    if (AppVariables.ExportOgg)
+                    {
+                        var oggPath = wavPath.Replace(AppVariables.OutputDirectoryWav, AppVariables.OutputDirectoryOgg).Replace(".wav", ".ogg");
+                        await ConvertWavFileToOggAsync(wavPath, oggPath);
+                    }
+                }
+            }
+            else if (ext == ".wav")
+            {
+                var wavPath = GetPckExternalOutputPath(filepath, entry, OutputFormat.Wav);
+                EnsureParentDirectory(wavPath);
+                await File.WriteAllBytesAsync(wavPath, data);
+                if (AppVariables.ExportOgg)
+                {
+                    var oggPath = wavPath.Replace(AppVariables.OutputDirectoryWav, AppVariables.OutputDirectoryOgg).Replace(".wav", ".ogg");
+                    await ConvertWavFileToOggAsync(wavPath, oggPath);
+                }
+            }
+            else
+            {
+                var path = GetPckExternalOutputPath(filepath, entry, OutputFormat.Wem);
+                EnsureParentDirectory(path);
+                await File.WriteAllBytesAsync(path, data);
+            }
+        }
+
+        //StreamsTable.Files
+        public async Task ProcessPckStreamAsync(byte[] data, FileTable.FileEntry entry, string filepath)
+        {
+            var ext = data.DetermineFileExtension();
+            if (ext == ".wem")
+            {
+                var wemPath = GetPckStreamOutputPath(entry, OutputFormat.Wem);
+                EnsureParentDirectory(wemPath);
+                await ProcessWemAsync(data, wemPath);
+                if (AppVariables.ExportWav || AppVariables.ExportOgg)
+                {
+                    var wavPath = wemPath.Replace(AppVariables.OutputDirectoryWem, AppVariables.OutputDirectoryWav).Replace(".wem", ".wav");
+                    await ConvertWemBytesToWavFileAsync(data, wavPath);
+                    if (AppVariables.ExportOgg)
+                    {
+                        var oggPath = wavPath.Replace(AppVariables.OutputDirectoryWav, AppVariables.OutputDirectoryOgg).Replace(".wav", ".ogg");
+                        await ConvertWavFileToOggAsync(wavPath, oggPath);
+                    }
+                }
+            }
+            else if (ext == ".wav")
+            {
+                var wavPath = GetPckStreamOutputPath(entry, OutputFormat.Wav);
+                EnsureParentDirectory(wavPath);
+                await File.WriteAllBytesAsync(wavPath, data);
+                if (AppVariables.ExportOgg)
+                {
+                    var oggPath = wavPath.Replace(AppVariables.OutputDirectoryWav, AppVariables.OutputDirectoryOgg).Replace(".wav", ".ogg");
+                    await ConvertWavFileToOggAsync(wavPath, oggPath);
+                }
+            }
+            else
+            {
+                var path = GetPckStreamOutputPath(entry, OutputFormat.Wem);
+                EnsureParentDirectory(path);
+                await File.WriteAllBytesAsync(path, data);
+            }
+        }
+
+        //DIDXChunk.Files
+        public async Task ProcessPckBnkWemAsync(byte[] data, DataIndexChunk.FileEntry entry, BankHeader header, string filepath)
+        {
+            var ext = data.DetermineFileExtension();
+            var wemPath = GetPckBnkWemOutputPath(entry, header, OutputFormat.Wem);
+            EnsureParentDirectory(wemPath);
+            if (ext == ".wem")
+            {
+                await ProcessWemAsync(data, wemPath);
+            }
+            else if (ext == ".wav")
+            {
+                var wavPath = GetPckBnkWemOutputPath(entry, header, OutputFormat.Wav);
+                EnsureParentDirectory(wavPath);
+                await File.WriteAllBytesAsync(wavPath, data);
+                if (AppVariables.ExportOgg)
+                {
+                    var oggPath = wavPath.Replace(AppVariables.OutputDirectoryWav, AppVariables.OutputDirectoryOgg).Replace(".wav", ".ogg");
+                    await ConvertWavFileToOggAsync(wavPath, oggPath);
+                }
+            }
+            else
+            {
+                await File.WriteAllBytesAsync(wemPath, data);
+            }
+        }
+
+        //WEM Files
+        public async Task ProcessWemAsync(byte[] data, string path)
+        {
+            EnsureParentDirectory(path);
+
+            var rel = Path.GetRelativePath(AppVariables.OutputDirectoryWem, path).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            if (string.IsNullOrEmpty(rel)) rel = Path.GetFileName(path);
+
+            var md = GetHashFromBytes(data);
+            var nowDate = DateTime.Now.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture);
+
+            if (_checksumIndex is not null && _checksumIndex.TryGetValue(rel, out var existing))
+            {
+                if (!string.IsNullOrEmpty(existing.Hash) && existing.Hash == md)
+                {
+                    EnqueueLog($"{Path.GetFileName(rel)} - SKIPPED (already processed)", System.Drawing.Color.Gray);
+                    return;
+                }
+            }
+
+            await File.WriteAllBytesAsync(path, data);
+
+            try
+            {
+                _checksumIndex ??= new ConcurrentDictionary<string, (string, string)>();
+                _checksumIndex[rel] = (md, nowDate);
+            }
+            catch { }
+
+            if (AppVariables.ExportOgg || AppVariables.ExportWav)
+            {
+                var wavPath = path.Replace(AppVariables.OutputDirectoryWem, AppVariables.OutputDirectoryWav).Replace(".wem", ".wav");
+                await ConvertWemBytesToWavFileAsync(data, wavPath);
+
+                if (AppVariables.ExportOgg)
+                {
+                    var oggPath = wavPath.Replace(AppVariables.OutputDirectoryWav, AppVariables.OutputDirectoryOgg).Replace(".wav", ".ogg");
+                    await ConvertWavFileToOggAsync(wavPath, oggPath);
+                }
+            }
+        }
+
+        #endregion
+
+        #region File Conversion Logic
+        // Run external process and capture stdout/stderr. Registers process to allow abort.
+        private async Task ConvertWemBytesToWavFileAsync(byte[] wemData, string wavOutputPath)
+        {
+            await _conversionSemaphore.WaitAsync();
+            try
+            {
+                if (!Directory.Exists("Processing")) Directory.CreateDirectory("Processing");
+                string tempWem = Path.Combine("Processing", Guid.NewGuid().ToString() + ".wem");
+                string tempWav = Path.Combine("Processing", Guid.NewGuid().ToString() + ".wav");
+                await File.WriteAllBytesAsync(tempWem, wemData);
+
+                string vgmPath = Path.Combine("Tools", "vgmstream-win", "vgmstream-cli.exe");
+                var args = $"-o \"{tempWav}\" \"{tempWem}\"";
+
+                var code = await RunProcessAsync(vgmPath, args, null, s =>
+                {
+                    if (string.IsNullOrWhiteSpace(s)) return;
+                    var line = s.Trim();
+                    if (IsImportantProcessLine(line)) EnqueueLog(line, System.Drawing.Color.Red);
+                });
+                if (code != 0) throw new InvalidOperationException($"vgmstream exited with {code}");
+
+                EnsureParentDirectory(wavOutputPath);
+                try
+                {
+                    if (File.Exists(wavOutputPath)) File.Delete(wavOutputPath);
+                    File.Move(tempWav, wavOutputPath);
+                }
+                catch
+                {
+                    try
+                    {
+                        File.Copy(tempWav, wavOutputPath, overwrite: true);
+                        File.Delete(tempWav);
+                    }
+                    catch (Exception inner)
+                    {
+                        EnqueueLog($"Failed to move/copy temp WAV to destination: {inner.Message}", System.Drawing.Color.Red);
+                        throw;
+                    }
+                }
+                try { if (File.Exists(tempWem)) File.Delete(tempWem); } catch { }
+            }
+            finally
+            {
+                _conversionSemaphore.Release();
+            }
+        }
+
+        private async Task ConvertWavFileToOggAsync(string wavPath, string oggOutputPath)
+        {
+            await _conversionSemaphore.WaitAsync();
+            try
+            {
+                string ffmpegPath = Path.Combine("Tools", "ffmpeg-master-latest-win64-gpl-shared", "bin", "ffmpeg.exe");
+                EnsureParentDirectory(oggOutputPath);
+                var args = $"-y -i \"{wavPath}\" -c:a libvorbis -qscale:a 10 \"{oggOutputPath}\"";
+
+                var code = await RunProcessAsync(ffmpegPath, args, null, s =>
+                {
+                    if (string.IsNullOrWhiteSpace(s)) return;
+                    var line = s.Trim();
+                    if (IsImportantProcessLine(line)) EnqueueLog(line, System.Drawing.Color.Red);
+                });
+                if (code != 0) throw new InvalidOperationException($"ffmpeg exited with {code}");
+                EnqueueLog($"{Path.GetFileName(oggOutputPath)} - DONE", System.Drawing.Color.Green);
+            }
+            finally
+            {
+                _conversionSemaphore.Release();
+            }
+        }
+
+        #endregion
+
+        #region OnExportEnded & Cleanup
 
         private void OnExportEnded(bool aborted)
         {
@@ -1357,38 +1365,33 @@ namespace WWiseToolsWPF.Views
 
         #endregion
 
-        #region Utility / small stubs
-
-        private void UpdateCanExportStatus()
+        #region Unused / Leftover
+        private async Task ProcessCHKWemAsync(byte[] data, uint wemId, string sourceFilePath)
         {
-            bool canExport = true;
-            AppVariables.ExportWem = WEMExportRadioButton.IsChecked == true;
-            AppVariables.ExportWav = WAVExportRadioButton.IsChecked == true;
-            AppVariables.ExportOgg = OGGExportRadioButton.IsChecked == true;
+            var wemPath = Path.Combine(AppVariables.OutputDirectoryWem, "vfs", Path.GetFileNameWithoutExtension(sourceFilePath), $"{wemId}.wem");
 
-            if (!AppVariables.ExportWem && !AppVariables.ExportWav && !AppVariables.ExportOgg)
-                canExport = false;
+            EnsureParentDirectory(wemPath);
 
-            if (AppVariables.InputFiles.Count == 0 || !Directory.Exists(OutputDirectoryTextBox.Text))
-                canExport = false;
+            await ProcessWemAsync(data, wemPath);
 
-            if (!Directory.Exists(Path.Combine("Tools", "vgmstream-win")))
+            if (AppVariables.ExportWav || AppVariables.ExportOgg)
             {
-                canExport = false;
-                EnqueueLog("Please download VGMStream.", System.Drawing.Color.Red);
-            }
-            if (!Directory.Exists(Path.Combine("Tools", "ffmpeg-master-latest-win64-gpl-shared")))
-            {
-                canExport = false;
-                EnqueueLog("Please download FFmpeg.", System.Drawing.Color.Red);
-            }
+                var wavPath = wemPath
+                    .Replace(AppVariables.OutputDirectoryWem, AppVariables.OutputDirectoryWav)
+                    .Replace(".wem", ".wav");
 
-            ExportButton.IsEnabled = canExport;
+                await ConvertWemBytesToWavFileAsync(data, wavPath);
 
-            if (canExport)
-                EnqueueLog("Ready to Export", System.Drawing.Color.Green);
+                if (AppVariables.ExportOgg)
+                {
+                    var oggPath = wavPath
+                        .Replace(AppVariables.OutputDirectoryWav, AppVariables.OutputDirectoryOgg)
+                        .Replace(".wav", ".ogg");
+
+                    await ConvertWavFileToOggAsync(wavPath, oggPath);
+                }
+            }
         }
-
         #endregion
     }
 }
