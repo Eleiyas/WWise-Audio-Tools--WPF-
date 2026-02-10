@@ -60,7 +60,7 @@
             <Run Text="Dvingerh" FontWeight="Bold"/>
         </Hyperlink>
         <LineBreak/>
-        <Run Text="A lot of code used was modified from the &quot;Genshin Audio Exporter&quot;."/>
+        <Run Text="A lot of code used in the original WinForms program was modified from the &quot;Genshin Audio Exporter&quot;."/>
         <LineBreak/>
         <LineBreak/>
 
