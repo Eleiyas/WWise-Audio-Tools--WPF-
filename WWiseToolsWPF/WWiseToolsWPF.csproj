@@ -7,6 +7,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <ApplicationIcon>Resources\Wwise_128.ico</ApplicationIcon>
+    <AssemblyTitle>WWise Audio Tools (WPF)</AssemblyTitle>
+    <Authors>Eleiyas</Authors>
+    <PackageProjectUrl></PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Eleiyas/WWise-Audio-Tools--WPF-</RepositoryUrl>
   </PropertyGroup>
 
   <ItemGroup>
