@@ -50,6 +50,12 @@ namespace WWiseToolsWPF
         {
             MainContent.Content = new Views.AudioExtractor();
         }
+
+        private void FNVHasherButton_Click(object sender, RoutedEventArgs e)
+        {
+            MainContent.Content = new Views.FNVHasher();
+        }
+
         private void DownloadsButton_Click(object sender, RoutedEventArgs e)
         {
             MainContent.Content = new Views.Downloads();

@@ -20,6 +20,7 @@
                               Checked="HamburgerButton_Checked" Unchecked="HamburgerButton_Unchecked"/>
                 <!--<Button Content="InitScreen" Margin="8" Click="InitScreenButton_Click"/>-->
                 <Button Content="Audio Extractor" Margin="8" Click="AudioExtractorButton_Click"/>
+                <Button Content="FNV Hasher" Margin="8" Click="FNVHasherButton_Click"/>
                 <Button Content="Downloads" Margin="8" Click="DownloadsButton_Click"/>
             </StackPanel>
         </Border>

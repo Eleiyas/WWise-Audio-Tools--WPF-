@@ -4,7 +4,7 @@
              MinWidth="900"
              MinHeight="600">
 
-    <Grid Margin="12">
+    <Grid Margin="10">
         <!-- MAIN LAYOUT -->
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
