@@ -2,7 +2,7 @@
 using System.IO;
 using System.Linq;
 
-namespace WWise_Audio_Tools.Classes.AppClasses
+namespace WWiseToolsWPF.Classes.AppClasses
 {
     public static class Extensions
     {

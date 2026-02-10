@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-namespace WWise_Audio_Tools.Classes.AppClasses
+namespace WWiseToolsWPF.Classes.AppClasses
 {
     public static class AppVariables
     {

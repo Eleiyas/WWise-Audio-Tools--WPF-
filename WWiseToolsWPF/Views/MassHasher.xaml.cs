@@ -12,8 +12,8 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Threading;
-using WWise_Audio_Tools.Classes.AppClasses;
-using static WWise_Audio_Tools.Classes.AppClasses.FNVHash;
+using WWiseToolsWPF.Classes.AppClasses;
+using static WWiseToolsWPF.Classes.AppClasses.FNVHash;
 
 namespace WWiseToolsWPF.Views
 {
@@ -24,8 +24,7 @@ namespace WWiseToolsWPF.Views
         private CancellationTokenSource? _abortCts;
 
         // Logging and concurrency
-        private readonly ConcurrentQueue<(string Text, System.Drawing.Color? Color)> _logQueue = new();
-        private readonly DispatcherTimer _logTimer;
+        private Logger _logger;
 
         private HashSet<ulong> knownHashes = new HashSet<ulong>();
         private HashSet<ulong> targetHashes = new HashSet<ulong>();
@@ -41,14 +40,12 @@ namespace WWiseToolsWPF.Views
         {
             InitializeComponent();
 
+            _logger = new Logger(StatusTextBox);
+            Unloaded += (_, _) => _logger?.Dispose();
+
             // Keep the same default texts as the original
             InputTextBox.Text = "No Input File Selected.";
             OutputDirectoryTextBox.Text = Properties.Settings.Default.OutputDirectory ?? "No Output Directory Selected.";
-
-            // Log flush timer (non-blocking)
-            _logTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
-            _logTimer.Tick += (_, __) => FlushLogsToUI();
-            _logTimer.Start();
 
             LoadKnownHashes(@"Libs\known_hashes.txt");
             LoadTargetHashes(@"Libs\target_hashes.txt");
@@ -75,7 +72,7 @@ namespace WWiseToolsWPF.Views
 
                 inputFileSelected = true;
             }
-            EnqueueLog("Successfully loaded parsed filenames.");
+            _logger.Enqueue("Successfully loaded parsed filenames.");
         }
 
         private void OutputDirectoryButton_Click(object sender, EventArgs e)
@@ -87,7 +84,7 @@ namespace WWiseToolsWPF.Views
                 AppVariables.OutputDirectory = fbd.FolderName;
                 OutputDirectoryTextBox.Text = fbd.FolderName;
 
-                EnqueueLog($"Output set as: {AppVariables.OutputDirectory}");
+                _logger.Enqueue($"Output set as: {AppVariables.OutputDirectory}");
 
                 outputDirSelected = true;
             }
@@ -97,7 +94,7 @@ namespace WWiseToolsWPF.Views
         {
             if (!inputFileSelected || !outputDirSelected)
             {
-                EnqueueLog(
+                _logger.Enqueue(
                     "Please make sure to load a valid file and set an output before running.",
                     System.Drawing.Color.Red
                 );
@@ -149,68 +146,6 @@ namespace WWiseToolsWPF.Views
 
         #endregion
 
-        #region Logging (thread-safe)
-
-        private void EnqueueLog(string text, System.Drawing.Color? color = null)
-        {
-            _logQueue.Enqueue((text, color));
-        }
-
-        private void FlushLogsToUI()
-        {
-            if (_logQueue.IsEmpty) return;
-
-            var entries = new List<(string Text, System.Drawing.Color? Color)>();
-            while (_logQueue.TryDequeue(out var e))
-                entries.Add(e);
-
-            if (entries.Count == 0) return;
-
-            Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
-            {
-                foreach (var e in entries)
-                {
-                    AppendStatusText(e.Text, e.Color);
-                }
-
-                // Defer scrolling until AFTER layout/render
-                Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
-                {
-                    StatusTextBox.ScrollToEnd();
-                }));
-            }));
-        }
-
-        private void AppendStatusText(string text, System.Drawing.Color? color = null)
-        {
-            var paragraph = new Paragraph { Margin = new Thickness(0) };
-            var run = new Run(text);
-            if (color.HasValue)
-            {
-                run.Foreground = new SolidColorBrush(ConvertDrawingColor(color.Value));
-            }
-            paragraph.Inlines.Add(run);
-            StatusTextBox.Document.Blocks.Add(paragraph);
-        }
-
-        private static System.Windows.Media.Color ConvertDrawingColor(System.Drawing.Color c)
-        {
-            return System.Windows.Media.Color.FromArgb(c.A, c.R, c.G, c.B);
-        }
-
-        private static bool IsImportantProcessLine(string line)
-        {
-            var lower = line.ToLowerInvariant();
-            if (lower.Contains("frame=") || lower.Contains("fps=") || lower.Contains("size=") || lower.Contains("time=") || lower.Contains("bitrate=") || lower.Contains("speed=") || lower.Contains("progress")) return false;
-            if (lower.Contains("active code page")) return false;
-            if (lower.Contains("error") || lower.Contains("failed") || lower.Contains("unsupported")) return true;
-            if (line.StartsWith("WARNING", StringComparison.OrdinalIgnoreCase)) return true;
-            if (line.StartsWith("Error", StringComparison.OrdinalIgnoreCase)) return true;
-            return false;
-        }
-
-        #endregion
-
         #region Run
 
         private void ProcessFile()
@@ -234,7 +169,7 @@ namespace WWiseToolsWPF.Views
                 {
                     string matchStatus = $"MATCH: {hash:x16}\t{line}";
 
-                    EnqueueLog(matchStatus);
+                    _logger.Enqueue(matchStatus);
                 }
                 /*  if (!targetHashes.Contains(hash) && knownHashes.Contains(hash))
                   {
@@ -245,7 +180,7 @@ namespace WWiseToolsWPF.Views
             }
 
             File.WriteAllLines(Path.Join(AppVariables.OutputDirectory, "GeneratedOutput.txt"), fileOutputList);
-            EnqueueLog("Processing completed.");
+            _logger.Enqueue("Processing completed.");
         }
 
         #endregion

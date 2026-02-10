@@ -1,4 +1,4 @@
-﻿namespace WWise_Audio_Tools.Classes.PackageClasses
+﻿namespace WWiseToolsWPF.Classes.PackageClasses
 {
     public class PackageChunkMagics
     {

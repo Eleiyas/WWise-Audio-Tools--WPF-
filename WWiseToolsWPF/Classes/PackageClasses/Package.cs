@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
 using System.Text;
-using WWise_Audio_Tools.Classes.AppClasses;
+using WWiseToolsWPF.Classes.AppClasses;
 using Newtonsoft.Json;
 
-namespace WWise_Audio_Tools.Classes.PackageClasses
+namespace WWiseToolsWPF.Classes.PackageClasses
 {
     public class Package
     {

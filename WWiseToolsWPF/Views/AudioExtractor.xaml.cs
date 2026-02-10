@@ -18,10 +18,10 @@ using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Win32;
-using WWise_Audio_Tools.Classes.AppClasses;
-using WWise_Audio_Tools.Classes.BankClasses;
-using WWise_Audio_Tools.Classes.BankClasses.Chunks;
-using WWise_Audio_Tools.Classes.PackageClasses;
+using WWiseToolsWPF.Classes.AppClasses;
+using WWiseToolsWPF.Classes.BankClasses;
+using WWiseToolsWPF.Classes.BankClasses.Chunks;
+using WWiseToolsWPF.Classes.PackageClasses;
 
 namespace WWiseToolsWPF.Views
 {
@@ -32,8 +32,7 @@ namespace WWiseToolsWPF.Views
         private CancellationTokenSource? _abortCts;
 
         // Logging and concurrency
-        private readonly ConcurrentQueue<(string Text, System.Drawing.Color? Color)> _logQueue = new();
-        private readonly DispatcherTimer _logTimer;
+        private Logger _logger;
         private readonly SemaphoreSlim _conversionSemaphore = new SemaphoreSlim(Math.Max(4, Environment.ProcessorCount));
         private readonly SemaphoreSlim _fileProcessingSemaphore = new SemaphoreSlim(1);
 
@@ -55,16 +54,14 @@ namespace WWiseToolsWPF.Views
         {
             InitializeComponent();
 
+            _logger = new Logger(StatusTextBox);
+            Unloaded += (_, _) => _logger?.Dispose();
+
             // Keep the same default texts as the original
             InputFilesTextBox.Text = "No Input Files Selected.";
             OutputDirectoryTextBox.Text = Properties.Settings.Default.OutputDirectory ?? "No Output Directory Selected.";
             KnownFilenamesTextBox.Text = "No Known_Filenames TSV Selected.";
             KnownEventsTextBox.Text = "No Known_Events TSV Selected.";
-
-            // Log flush timer (non-blocking)
-            _logTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
-            _logTimer.Tick += (_, __) => FlushLogsToUI();
-            _logTimer.Start();
 
             // restore saved radio state where possible
             WEMExportRadioButton.IsChecked = Properties.Settings.Default.ExportWem;
@@ -98,7 +95,7 @@ namespace WWiseToolsWPF.Views
                     var outputLine = folderName + "\\" + fileName;
 
                     InputFilesTextBox.Text = $"Selected {AppVariables.InputFiles.Count} WWise file{(AppVariables.InputFiles.Count > 1 ? "s" : "")} to process.";
-                    EnqueueLog($"Successfully loaded {outputLine}", System.Drawing.Color.Green);
+                    _logger.Enqueue($"Successfully loaded {outputLine}", System.Drawing.Color.Green);
                 }
             }
             UpdateCanExportStatus();
@@ -121,7 +118,7 @@ namespace WWiseToolsWPF.Views
 
                 outputDirSelected = true;
 
-                EnqueueLog($"Output set as: {AppVariables.OutputDirectory}", System.Drawing.Color.Green);
+                _logger.Enqueue($"Output set as: {AppVariables.OutputDirectory}", System.Drawing.Color.Green);
             }
             UpdateCanExportStatus();
         }
@@ -144,7 +141,7 @@ namespace WWiseToolsWPF.Views
                     if (entry.Length >= 2) KnownFilenames[entry[0]] = entry[1];
                 }
 
-                EnqueueLog("Successfully loaded Known_Filenames.tsv", System.Drawing.Color.Green);
+                _logger.Enqueue("Successfully loaded Known_Filenames.tsv", System.Drawing.Color.Green);
             }
             UpdateCanExportStatus();
         }
@@ -167,7 +164,7 @@ namespace WWiseToolsWPF.Views
                     if (entry.Length >= 2) KnownEvents[entry[0]] = entry[1];
                 }
 
-                EnqueueLog("Successfully loaded Known_Events.tsv", System.Drawing.Color.Green);
+                _logger.Enqueue("Successfully loaded Known_Events.tsv", System.Drawing.Color.Green);
             }
             UpdateCanExportStatus();
         }
@@ -176,12 +173,12 @@ namespace WWiseToolsWPF.Views
         {
             if (outputDirSelected == false)
             {
-                EnqueueLog("Please select an output directory first.", System.Drawing.Color.Red);
+                _logger.Enqueue("Please select an output directory first.", System.Drawing.Color.Red);
                 WEMExportRadioButton.IsChecked = false;
                 return;
             }
-            EnqueueLog("Selected 'Export to WEM'.", System.Drawing.Color.Green);
-            EnqueueLog($"{AppVariables.OutputDirectoryWem}", System.Drawing.Color.Gray);
+            _logger.Enqueue("Selected 'Export to WEM'.", System.Drawing.Color.Green);
+            _logger.Enqueue($"{AppVariables.OutputDirectoryWem}", System.Drawing.Color.Gray);
             UpdateCanExportStatus();
         }
 
@@ -189,12 +186,12 @@ namespace WWiseToolsWPF.Views
         {
             if (outputDirSelected == false)
             {
-                EnqueueLog("Please select an output directory first.", System.Drawing.Color.Red);
+                _logger.Enqueue("Please select an output directory first.", System.Drawing.Color.Red);
                 WAVExportRadioButton.IsChecked = false;
                 return;
             }
-            EnqueueLog("Selected 'Export to WAV'.", System.Drawing.Color.Green);
-            EnqueueLog($"{AppVariables.OutputDirectoryWav}", System.Drawing.Color.Gray);
+            _logger.Enqueue("Selected 'Export to WAV'.", System.Drawing.Color.Green);
+            _logger.Enqueue($"{AppVariables.OutputDirectoryWav}", System.Drawing.Color.Gray);
             UpdateCanExportStatus();
         }
 
@@ -202,44 +199,44 @@ namespace WWiseToolsWPF.Views
         {
             if (outputDirSelected == false)
             {
-                EnqueueLog("Please select an output directory first.", System.Drawing.Color.Red);
+                _logger.Enqueue("Please select an output directory first.", System.Drawing.Color.Red);
                 OGGExportRadioButton.IsChecked = false;
                 return;
             }
-            EnqueueLog("Selected 'Export to OGG'.", System.Drawing.Color.Green);
-            EnqueueLog($"{AppVariables.OutputDirectoryOgg}", System.Drawing.Color.Gray);
+            _logger.Enqueue("Selected 'Export to OGG'.", System.Drawing.Color.Green);
+            _logger.Enqueue($"{AppVariables.OutputDirectoryOgg}", System.Drawing.Color.Gray);
             UpdateCanExportStatus();
         }
 
         private void SplitOutputCheckBox_Checked(object sender, RoutedEventArgs e) =>
-            EnqueueLog("Selected 'Split Output'.", System.Drawing.Color.Green);
+            _logger.Enqueue("Selected 'Split Output'.", System.Drawing.Color.Green);
 
         private void SplitOutputCheckBox_UnChecked(object sender, RoutedEventArgs e) =>
-            EnqueueLog("Deselected 'Split Output'.", System.Drawing.Color.Gray);
+            _logger.Enqueue("Deselected 'Split Output'.", System.Drawing.Color.Gray);
 
         private void BankedOutputCheckBox_Checked(object sender, RoutedEventArgs e) =>
-            EnqueueLog("Selected 'Banked Output'.", System.Drawing.Color.Gray);
+            _logger.Enqueue("Selected 'Banked Output'.", System.Drawing.Color.Gray);
 
         private void BankedOutputCheckBox_UnChecked(object sender, RoutedEventArgs e) =>
-            EnqueueLog("Deselected 'Banked Output'.", System.Drawing.Color.Gray);
+            _logger.Enqueue("Deselected 'Banked Output'.", System.Drawing.Color.Gray);
 
         private void LegacyCheckBox_Checked(object sender, RoutedEventArgs e) =>
-            EnqueueLog("Selected 'Legacy Output'.", System.Drawing.Color.Gray);
+            _logger.Enqueue("Selected 'Legacy Output'.", System.Drawing.Color.Gray);
 
         private void LegacyCheckBox_UnChecked(object sender, RoutedEventArgs e) =>
-            EnqueueLog("Deselected 'Legacy Output'.", System.Drawing.Color.Gray);
+            _logger.Enqueue("Deselected 'Legacy Output'.", System.Drawing.Color.Gray);
 
         private void NoLangCheckBox_Checked(object sender, RoutedEventArgs e) =>
-            EnqueueLog("Selected 'NoLang'.", System.Drawing.Color.Gray);
+            _logger.Enqueue("Selected 'NoLang'.", System.Drawing.Color.Gray);
 
         private void NoLangCheckBox_UnChecked(object sender, RoutedEventArgs e) =>
-            EnqueueLog("Deselected 'NoLang'.", System.Drawing.Color.Gray);
+            _logger.Enqueue("Deselected 'NoLang'.", System.Drawing.Color.Gray);
 
         private void SpreadsheetOutputCheckBox_Checked(object sender, RoutedEventArgs e) =>
-            EnqueueLog("Selected 'Spreadsheet Output'.", System.Drawing.Color.Green);
+            _logger.Enqueue("Selected 'Spreadsheet Output'.", System.Drawing.Color.Green);
 
         private void SpreadsheetOutputCheckBox_UnChecked(object sender, RoutedEventArgs e) =>
-            EnqueueLog("Deselected 'Spreadsheet Output'.", System.Drawing.Color.Gray);
+            _logger.Enqueue("Deselected 'Spreadsheet Output'.", System.Drawing.Color.Gray);
 
         private async void ExportButton_Click(object sender, RoutedEventArgs e)
         {
@@ -270,7 +267,7 @@ namespace WWiseToolsWPF.Views
                 CurrentProgressBar.Maximum = itemCount;
                 TotalProgressBar.Maximum = itemCount;
 
-                EnqueueLog($"Exporting {AppVariables.InputFiles.Count} files", System.Drawing.Color.Purple);
+                _logger.Enqueue($"Exporting {AppVariables.InputFiles.Count} files", System.Drawing.Color.Purple);
 
                 try
                 {
@@ -278,7 +275,7 @@ namespace WWiseToolsWPF.Views
                 }
                 catch (Exception ex)
                 {
-                    EnqueueLog("Failed to load checksum index: " + ex.Message, System.Drawing.Color.Red);
+                    _logger.Enqueue("Failed to load checksum index: " + ex.Message, System.Drawing.Color.Red);
                     _checksumIndex = new ConcurrentDictionary<string, (string, string)>();
                 }
 
@@ -296,11 +293,11 @@ namespace WWiseToolsWPF.Views
                             try
                             {
                                 await ConvertInputFileAsync(input);
-                                EnqueueLog($"Exported: {input}", System.Drawing.Color.Green);
+                                _logger.Enqueue($"Exported: {input}", System.Drawing.Color.Green);
                             }
                             catch (Exception ex)
                             {
-                                EnqueueLog($"Error processing {input}: {ex.Message}", System.Drawing.Color.Red);
+                                _logger.Enqueue($"Error processing {input}: {ex.Message}", System.Drawing.Color.Red);
                             }
                             finally
                             {
@@ -335,7 +332,7 @@ namespace WWiseToolsWPF.Views
                 }
                 catch (Exception ex)
                 {
-                    EnqueueLog("Failed to save checksum index: " + ex.Message, System.Drawing.Color.Red);
+                    _logger.Enqueue("Failed to save checksum index: " + ex.Message, System.Drawing.Color.Red);
                 }
 
                 Cleanup();
@@ -366,70 +363,8 @@ namespace WWiseToolsWPF.Views
             {
                 try { if (!kv.Value.HasExited) kv.Value.Kill(entireProcessTree: true); } catch { }
             }
-            EnqueueLog("Abort requested.", System.Drawing.Color.Orange);
+            _logger.Enqueue("Abort requested.", System.Drawing.Color.Orange);
         }
-        #endregion
-
-        #region Logging (thread-safe)
-
-        private void EnqueueLog(string text, System.Drawing.Color? color = null)
-        {
-            _logQueue.Enqueue((text, color));
-        }
-
-        private void FlushLogsToUI()
-        {
-            if (_logQueue.IsEmpty) return;
-
-            var entries = new List<(string Text, System.Drawing.Color? Color)>();
-            while (_logQueue.TryDequeue(out var e))
-                entries.Add(e);
-
-            if (entries.Count == 0) return;
-
-            Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
-            {
-                foreach (var e in entries)
-                {
-                    AppendStatusText(e.Text, e.Color);
-                }
-
-                // Defer scrolling until AFTER layout/render
-                Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
-                {
-                    StatusTextBox.ScrollToEnd();
-                }));
-            }));
-        }
-
-        private void AppendStatusText(string text, System.Drawing.Color? color = null)
-        {
-            var paragraph = new Paragraph { Margin = new Thickness(0) };
-            var run = new Run(text);
-            if (color.HasValue)
-            {
-                run.Foreground = new SolidColorBrush(ConvertDrawingColor(color.Value));
-            }
-            paragraph.Inlines.Add(run);
-            StatusTextBox.Document.Blocks.Add(paragraph);
-        }
-
-        private static System.Windows.Media.Color ConvertDrawingColor(System.Drawing.Color c)
-        {
-            return System.Windows.Media.Color.FromArgb(c.A, c.R, c.G, c.B);
-        }
-
-        private static bool IsImportantProcessLine(string line)
-        {
-            var lower = line.ToLowerInvariant();
-            if (lower.Contains("frame=") || lower.Contains("fps=") || lower.Contains("size=") || lower.Contains("time=") || lower.Contains("bitrate=") || lower.Contains("speed=") || lower.Contains("progress")) return false;
-            if (lower.Contains("active code page")) return false;
-            if (lower.Contains("error") || lower.Contains("failed") || lower.Contains("unsupported")) return true;
-            if (line.StartsWith("WARNING", StringComparison.OrdinalIgnoreCase)) return true;
-            if (line.StartsWith("Error", StringComparison.OrdinalIgnoreCase)) return true;
-            return false;
-        }
-
         #endregion
 
         #region General Helpers
@@ -485,18 +420,18 @@ namespace WWiseToolsWPF.Views
             if (!Directory.Exists(Path.Combine("Tools", "vgmstream-win")))
             {
                 canExport = false;
-                EnqueueLog("Please download VGMStream.", System.Drawing.Color.Red);
+                _logger.Enqueue("Please download VGMStream.", System.Drawing.Color.Red);
             }
             if (!Directory.Exists(Path.Combine("Tools", "ffmpeg-master-latest-win64-gpl-shared")))
             {
                 canExport = false;
-                EnqueueLog("Please download FFmpeg.", System.Drawing.Color.Red);
+                _logger.Enqueue("Please download FFmpeg.", System.Drawing.Color.Red);
             }
 
             ExportButton.IsEnabled = canExport;
 
             if (canExport)
-                EnqueueLog("Ready to Export", System.Drawing.Color.Green);
+                _logger.Enqueue("Ready to Export", System.Drawing.Color.Green);
         }
 
         private Task<int> RunProcessAsync(string fileName, string arguments, Action<string>? onOutput = null, Action<string>? onError = null)
@@ -557,6 +492,17 @@ namespace WWiseToolsWPF.Views
                 tcs.TrySetException(ex);
             }
             return tcs.Task;
+        }
+
+        private static bool IsImportantProcessLine(string line)
+        {
+            var lower = line.ToLowerInvariant();
+            if (lower.Contains("frame=") || lower.Contains("fps=") || lower.Contains("size=") || lower.Contains("time=") || lower.Contains("bitrate=") || lower.Contains("speed=") || lower.Contains("progress")) return false;
+            if (lower.Contains("active code page")) return false;
+            if (lower.Contains("error") || lower.Contains("failed") || lower.Contains("unsupported")) return true;
+            if (line.StartsWith("WARNING", StringComparison.OrdinalIgnoreCase)) return true;
+            if (line.StartsWith("Error", StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
         }
 
         #endregion
@@ -659,25 +605,25 @@ namespace WWiseToolsWPF.Views
                         if (existing.Hash != fileHash)
                         {
                             processedFileHashes[outputLine] = (fileHash, DateTime.Now.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture));
-                            EnqueueLog("> MD5-Checksum Changed: " + outputLine, System.Drawing.Color.Orange);
+                            _logger.Enqueue("> MD5-Checksum Changed: " + outputLine, System.Drawing.Color.Orange);
                             anyChange = true;
                         }
                         else
                         {
                             File.Delete(file);
-                            EnqueueLog("> File Deleted (MD5-Checksum Matched): " + outputLine, System.Drawing.Color.Red);
+                            _logger.Enqueue("> File Deleted (MD5-Checksum Matched): " + outputLine, System.Drawing.Color.Red);
                         }
                     }
                     else
                     {
                         processedFileHashes[outputLine] = (fileHash, DateTime.Now.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture));
-                        EnqueueLog("> New MD5-Checksum Generated: " + outputLine, System.Drawing.Color.Green);
+                        _logger.Enqueue("> New MD5-Checksum Generated: " + outputLine, System.Drawing.Color.Green);
                         anyChange = true;
                     }
                 }
                 catch (Exception ex)
                 {
-                    EnqueueLog("Error hashing file: " + ex.Message, System.Drawing.Color.Red);
+                    _logger.Enqueue("Error hashing file: " + ex.Message, System.Drawing.Color.Red);
                 }
             });
 
@@ -937,7 +883,7 @@ namespace WWiseToolsWPF.Views
 
             ms.Seek(4, SeekOrigin.Begin);
             int headerSize = br.ReadInt32();
-            EnqueueLog($"{headerSize}");
+            _logger.Enqueue($"{headerSize}");
 
             ms.Seek(0, SeekOrigin.Begin);
             byte[] header = br.ReadBytes(headerSize + 8);
@@ -1120,7 +1066,7 @@ namespace WWiseToolsWPF.Views
             {
                 if (!string.IsNullOrEmpty(existing.Hash) && existing.Hash == md)
                 {
-                    EnqueueLog($"{Path.GetFileName(rel)} - SKIPPED (already processed)", System.Drawing.Color.Gray);
+                    _logger.Enqueue($"{Path.GetFileName(rel)} - SKIPPED (already processed)", System.Drawing.Color.Gray);
                     return;
                 }
             }
@@ -1168,7 +1114,7 @@ namespace WWiseToolsWPF.Views
                 {
                     if (string.IsNullOrWhiteSpace(s)) return;
                     var line = s.Trim();
-                    if (IsImportantProcessLine(line)) EnqueueLog(line, System.Drawing.Color.Red);
+                    if (IsImportantProcessLine(line)) _logger.Enqueue(line, System.Drawing.Color.Red);
                 });
                 if (code != 0) throw new InvalidOperationException($"vgmstream exited with {code}");
 
@@ -1187,7 +1133,7 @@ namespace WWiseToolsWPF.Views
                     }
                     catch (Exception inner)
                     {
-                        EnqueueLog($"Failed to move/copy temp WAV to destination: {inner.Message}", System.Drawing.Color.Red);
+                        _logger.Enqueue($"Failed to move/copy temp WAV to destination: {inner.Message}", System.Drawing.Color.Red);
                         throw;
                     }
                 }
@@ -1212,10 +1158,10 @@ namespace WWiseToolsWPF.Views
                 {
                     if (string.IsNullOrWhiteSpace(s)) return;
                     var line = s.Trim();
-                    if (IsImportantProcessLine(line)) EnqueueLog(line, System.Drawing.Color.Red);
+                    if (IsImportantProcessLine(line)) _logger.Enqueue(line, System.Drawing.Color.Red);
                 });
                 if (code != 0) throw new InvalidOperationException($"ffmpeg exited with {code}");
-                EnqueueLog($"{Path.GetFileName(oggOutputPath)} - DONE", System.Drawing.Color.Green);
+                _logger.Enqueue($"{Path.GetFileName(oggOutputPath)} - DONE", System.Drawing.Color.Green);
             }
             finally
             {
@@ -1239,7 +1185,7 @@ namespace WWiseToolsWPF.Views
         private async Task ProcessOutputAsync()
         {
             await Task.Run(() => ProcessOutput());
-            EnqueueLog("Processing Output Completed.", System.Drawing.Color.Green);
+            _logger.Enqueue("Processing Output Completed.", System.Drawing.Color.Green);
         }
 
         private void ProcessOutput()
@@ -1278,12 +1224,12 @@ namespace WWiseToolsWPF.Views
                     if (processedDict.TryAdd(outputLine, 0))
                     {
                         newFiles.Add(outputLine);
-                        EnqueueLog("> New file detected: " + outputLine, System.Drawing.Color.Green);
+                        _logger.Enqueue("> New file detected: " + outputLine, System.Drawing.Color.Green);
                     }
                 }
                 catch (Exception ex)
                 {
-                    EnqueueLog("Error while scanning files: " + ex.Message, System.Drawing.Color.Red);
+                    _logger.Enqueue("Error while scanning files: " + ex.Message, System.Drawing.Color.Red);
                 }
             });
 
@@ -1291,7 +1237,7 @@ namespace WWiseToolsWPF.Views
             {
                 var toAppend = newFiles.ToArray();
                 File.AppendAllLines(processedFilesFilePath, toAppend);
-                EnqueueLog($"{toAppend.Length} new audio files have been exported.", System.Drawing.Color.Purple);
+                _logger.Enqueue($"{toAppend.Length} new audio files have been exported.", System.Drawing.Color.Purple);
             }
 
             // Use the captured UI state rather than reading the checkbox from the background thread.
@@ -1314,10 +1260,7 @@ namespace WWiseToolsWPF.Views
                 }
 
                 File.WriteAllLines(outputFilePath, outputLines);
-                Dispatcher.Invoke(() =>
-                {
-                    AppendStatusText("> " + "Output files saved to " + outputFilePath, System.Drawing.Color.Green);
-                });
+                _logger.Enqueue("> " + "Output files saved to " + outputFilePath, System.Drawing.Color.Green);
             }
         }
 
@@ -1328,7 +1271,7 @@ namespace WWiseToolsWPF.Views
                 foreach (string dirPath in Directory.GetDirectories(AppVariables.OutputDirectoryWem))
                 {
                     Directory.Delete(dirPath, true);
-                    EnqueueLog($"Deleting: {dirPath}", System.Drawing.Color.Red);
+                    _logger.Enqueue($"Deleting: {dirPath}", System.Drawing.Color.Red);
                 }
             }
             if (AppVariables.ExportOgg)
@@ -1336,12 +1279,12 @@ namespace WWiseToolsWPF.Views
                 foreach (string dirPath in Directory.GetDirectories(AppVariables.OutputDirectoryWem))
                 {
                     Directory.Delete(dirPath, true);
-                    EnqueueLog($"Deleting: {dirPath}", System.Drawing.Color.Red);
+                    _logger.Enqueue($"Deleting: {dirPath}", System.Drawing.Color.Red);
                 }
                 foreach (string dirPath in Directory.GetDirectories(AppVariables.OutputDirectoryWav))
                 {
                     Directory.Delete(dirPath, true);
-                    EnqueueLog($"Deleting: {dirPath}", System.Drawing.Color.Red);
+                    _logger.Enqueue($"Deleting: {dirPath}", System.Drawing.Color.Red);
                 }
             }
 
@@ -1353,11 +1296,11 @@ namespace WWiseToolsWPF.Views
                     try
                     {
                         File.Delete(filePath);
-                        EnqueueLog($"Deleting: {filePath}", System.Drawing.Color.Red);
+                        _logger.Enqueue($"Deleting: {filePath}", System.Drawing.Color.Red);
                     }
                     catch (Exception ex)
                     {
-                        EnqueueLog($"Failed to delete {filePath}: {ex.Message}", System.Drawing.Color.Red);
+                        _logger.Enqueue($"Failed to delete {filePath}: {ex.Message}", System.Drawing.Color.Red);
                     }
                 }
             }

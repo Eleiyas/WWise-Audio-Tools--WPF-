@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using WWise_Audio_Tools.Classes.AppClasses;
+using WWiseToolsWPF.Classes.AppClasses;
 using Newtonsoft.Json;
 
-namespace WWise_Audio_Tools.Classes.BankClasses.Chunks
+namespace WWiseToolsWPF.Classes.BankClasses.Chunks
 {
     public class Chunk
     {

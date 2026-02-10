@@ -20,19 +20,18 @@ using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
-using WWise_Audio_Tools.Classes.AppClasses;
-using WWise_Audio_Tools.Classes.BankClasses;
-using WWise_Audio_Tools.Classes.BankClasses.Chunks;
-using WWise_Audio_Tools.Classes.PackageClasses;
-using static WWise_Audio_Tools.Classes.AppClasses.FNVHash;
+using WWiseToolsWPF.Classes.AppClasses;
+using WWiseToolsWPF.Classes.BankClasses;
+using WWiseToolsWPF.Classes.BankClasses.Chunks;
+using WWiseToolsWPF.Classes.PackageClasses;
+using static WWiseToolsWPF.Classes.AppClasses.FNVHash;
 
 namespace WWiseToolsWPF.Views
 {
     public partial class FNVHasher : UserControl
     {
         // Logging and concurrency
-        private readonly ConcurrentQueue<(string Text, System.Drawing.Color? Color)> _logQueue = new();
-        private readonly DispatcherTimer _logTimer;
+        private Logger _logger;
 
         // Data
         private HashSet<ulong> knownHashes = new HashSet<ulong>();
@@ -42,64 +41,12 @@ namespace WWiseToolsWPF.Views
         {
             InitializeComponent();
 
-            // Log flush timer (non-blocking)
-            _logTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
-            _logTimer.Tick += (_, __) => FlushLogsToUI();
-            _logTimer.Start();
+            _logger = new Logger(OutputTextBox);
+            Unloaded += (_, _) => _logger?.Dispose();
 
             LoadKnownHashes(@"Libs\known_hashes.txt");
             LoadTargetHashes(@"Libs\target_hashes.txt");
         }
-
-        #region Logging
-        private void EnqueueLog(string text, System.Drawing.Color? color = null)
-        {
-            _logQueue.Enqueue((text, color));
-        }
-
-        private void FlushLogsToUI()
-        {
-            if (_logQueue.IsEmpty) return;
-
-            var entries = new List<(string Text, System.Drawing.Color? Color)>();
-            while (_logQueue.TryDequeue(out var e))
-                entries.Add(e);
-
-            if (entries.Count == 0) return;
-
-            Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
-            {
-                foreach (var e in entries)
-                {
-                    AppendOutputText(e.Text, e.Color);
-                }
-
-                // Defer scrolling until AFTER layout/render
-                Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
-                {
-                    OutputTextBox.ScrollToEnd();
-                }));
-            }));
-        }
-
-        private void AppendOutputText(string text, System.Drawing.Color? color = null)
-        {
-            var paragraph = new Paragraph { Margin = new Thickness(0) };
-            var run = new Run(text);
-            if (color.HasValue)
-            {
-                run.Foreground = new SolidColorBrush(ConvertDrawingColor(color.Value));
-            }
-            paragraph.Inlines.Add(run);
-            OutputTextBox.Document.Blocks.Add(paragraph);
-        }
-
-        private static System.Windows.Media.Color ConvertDrawingColor(System.Drawing.Color c)
-        {
-            return System.Windows.Media.Color.FromArgb(c.A, c.R, c.G, c.B);
-        }
-
-        #endregion
 
         #region File Loading
         private void LoadTargetHashes(string filename)
@@ -155,11 +102,11 @@ namespace WWiseToolsWPF.Views
                         {
                             if (LegacyCheckBox.IsChecked == true)
                             {
-                                EnqueueLog("MATCH - " + hash.ToString("d") + "\t" + UserText, System.Drawing.Color.LimeGreen);
+                                _logger.Enqueue("MATCH - " + hash.ToString("d") + "\t" + UserText, System.Drawing.Color.LimeGreen);
                             }
                             else
                             {
-                                EnqueueLog("MATCH - " + hash.ToString("x8") + "\t" + UserText, System.Drawing.Color.LimeGreen);
+                                _logger.Enqueue("MATCH - " + hash.ToString("x8") + "\t" + UserText, System.Drawing.Color.LimeGreen);
                             }
                         }
 
@@ -167,11 +114,11 @@ namespace WWiseToolsWPF.Views
                         {
                             if (LegacyCheckBox.IsChecked == true)
                             {
-                                EnqueueLog("MATCH KNOWN - " + hash.ToString("d") + "\t" + UserText, System.Drawing.Color.DeepSkyBlue);
+                                _logger.Enqueue("MATCH KNOWN - " + hash.ToString("d") + "\t" + UserText, System.Drawing.Color.DeepSkyBlue);
                             }
                             else
                             {
-                                EnqueueLog("MATCH KNOWN - " + hash.ToString("x8") + "\t" + UserText, System.Drawing.Color.DeepSkyBlue);
+                                _logger.Enqueue("MATCH KNOWN - " + hash.ToString("x8") + "\t" + UserText, System.Drawing.Color.DeepSkyBlue);
                             }
                         }
                     }
@@ -179,11 +126,11 @@ namespace WWiseToolsWPF.Views
                     {
                         if (LegacyCheckBox.IsChecked == true)
                         {
-                            EnqueueLog(hash.ToString("d") + "\t" + UserText);
+                            _logger.Enqueue(hash.ToString("d") + "\t" + UserText);
                         }
                         else
                         {
-                            EnqueueLog(hash.ToString("x8") + "\t" + UserText);
+                            _logger.Enqueue(hash.ToString("x8") + "\t" + UserText);
                         }
                     }
                     e.Handled = true;
@@ -207,11 +154,11 @@ namespace WWiseToolsWPF.Views
                         {
                             if (LegacyCheckBox.IsChecked == true)
                             {
-                                EnqueueLog("MATCH - " + hash.ToString("d") + "\t" + UserText, System.Drawing.Color.LimeGreen);
+                                _logger.Enqueue("MATCH - " + hash.ToString("d") + "\t" + UserText, System.Drawing.Color.LimeGreen);
                             }
                             else
                             {
-                                EnqueueLog("MATCH - " + hash.ToString("x16") + "\t" + UserText, System.Drawing.Color.LimeGreen);
+                                _logger.Enqueue("MATCH - " + hash.ToString("x16") + "\t" + UserText, System.Drawing.Color.LimeGreen);
                             }
                         }
 
@@ -219,11 +166,11 @@ namespace WWiseToolsWPF.Views
                         {
                             if (LegacyCheckBox.IsChecked == true)
                             {
-                                EnqueueLog("MATCH KNOWN - " + hash.ToString("d") + "\t" + UserText, System.Drawing.Color.DeepSkyBlue);
+                                _logger.Enqueue("MATCH KNOWN - " + hash.ToString("d") + "\t" + UserText, System.Drawing.Color.DeepSkyBlue);
                             }
                             else
                             {
-                                EnqueueLog("MATCH KNOWN - " + hash.ToString("x16") + "\t" + UserText, System.Drawing.Color.DeepSkyBlue);
+                                _logger.Enqueue("MATCH KNOWN - " + hash.ToString("x16") + "\t" + UserText, System.Drawing.Color.DeepSkyBlue);
                             }
                         }
                     }
@@ -231,11 +178,11 @@ namespace WWiseToolsWPF.Views
                     {
                         if (LegacyCheckBox.IsChecked == true)
                         {
-                            EnqueueLog(hash.ToString("d") + "\t" + UserText);
+                            _logger.Enqueue(hash.ToString("d") + "\t" + UserText);
                         }
                         else
                         {
-                            EnqueueLog(hash.ToString("x16") + "\t" + UserText);
+                            _logger.Enqueue(hash.ToString("x16") + "\t" + UserText);
                         }
                     }
                     e.Handled = true;

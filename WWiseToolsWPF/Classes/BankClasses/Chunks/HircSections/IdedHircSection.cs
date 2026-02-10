@@ -1,6 +1,6 @@
 ﻿using System.IO;
 
-namespace WWise_Audio_Tools.Classes.BankClasses.Chunks.HircSections
+namespace WWiseToolsWPF.Classes.BankClasses.Chunks.HircSections
 {
     public class IdedHircSection : HircSection
     {

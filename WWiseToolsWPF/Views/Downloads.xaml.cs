@@ -19,10 +19,10 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Threading;
-using WWise_Audio_Tools.Classes.AppClasses;
-using WWise_Audio_Tools.Classes.BankClasses;
-using WWise_Audio_Tools.Classes.BankClasses.Chunks;
-using WWise_Audio_Tools.Classes.PackageClasses;
+using WWiseToolsWPF.Classes.AppClasses;
+using WWiseToolsWPF.Classes.BankClasses;
+using WWiseToolsWPF.Classes.BankClasses.Chunks;
+using WWiseToolsWPF.Classes.PackageClasses;
 
 namespace WWiseToolsWPF.Views
 {
@@ -32,17 +32,13 @@ namespace WWiseToolsWPF.Views
         private static readonly HttpClient _httpClient = new HttpClient();
 
         // Logging and concurrency
-        private readonly ConcurrentQueue<(string Text, System.Drawing.Color? Color)> _logQueue = new();
-        private readonly DispatcherTimer _logTimer;
+        private Logger _logger;
 
         public Downloads()
         {
             InitializeComponent();
-
-            // Log flush timer (non-blocking)
-            _logTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
-            _logTimer.Tick += (_, __) => FlushLogsToUI();
-            _logTimer.Start();
+            _logger = new Logger(StatusTextBox);
+            Unloaded += (_, _) => _logger?.Dispose();
         }
 
         private async void VGMStreamDownloadButton_Click(object sender, EventArgs e)
@@ -73,7 +69,7 @@ namespace WWiseToolsWPF.Views
         {
             try
             {
-                EnqueueLog($"Starting download of {friendlyName}...");
+                _logger.Enqueue($"Starting download of {friendlyName}...");
 
                 var lastPercentage = -1;
 
@@ -116,74 +112,27 @@ namespace WWiseToolsWPF.Views
 
                         if (percent < 100)
                         {
-                            EnqueueLog(
+                            _logger.Enqueue(
                                 $"Downloading latest {friendlyName}: {percent}% completed.");
                         }
                     }
                 }
 
-                EnqueueLog("Download completed.", System.Drawing.Color.LimeGreen);
+                _logger.Enqueue("Download completed.", System.Drawing.Color.LimeGreen);
 
                 await Task.Run(() =>
                     ZipFile.ExtractToDirectory(zipPath, extractPath, overwriteFiles: true));
 
                 File.Delete(zipPath);
 
-                EnqueueLog(
+                _logger.Enqueue(
                     $"{friendlyName} extracted to {extractPath}",
                     System.Drawing.Color.LimeGreen);
             }
             catch (Exception ex)
             {
-                EnqueueLog(ex.ToString(), System.Drawing.Color.Red);
+                _logger.Enqueue(ex.ToString(), System.Drawing.Color.Red);
             }
-        }
-
-        private void EnqueueLog(string text, System.Drawing.Color? color = null)
-        {
-            _logQueue.Enqueue((text, color));
-        }
-
-        private void FlushLogsToUI()
-        {
-            if (_logQueue.IsEmpty) return;
-
-            var entries = new List<(string Text, System.Drawing.Color? Color)>();
-            while (_logQueue.TryDequeue(out var e))
-                entries.Add(e);
-
-            if (entries.Count == 0) return;
-
-            Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
-            {
-                foreach (var e in entries)
-                {
-                    AppendStatusText(e.Text, e.Color);
-                }
-
-                // Defer scrolling until AFTER layout/render
-                Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
-                {
-                    StatusTextBox.ScrollToEnd();
-                }));
-            }));
-        }
-
-        private void AppendStatusText(string text, System.Drawing.Color? color = null)
-        {
-            var paragraph = new Paragraph { Margin = new Thickness(0) };
-            var run = new Run(text);
-            if (color.HasValue)
-            {
-                run.Foreground = new SolidColorBrush(ConvertDrawingColor(color.Value));
-            }
-            paragraph.Inlines.Add(run);
-            StatusTextBox.Document.Blocks.Add(paragraph);
-        }
-
-        private static System.Windows.Media.Color ConvertDrawingColor(System.Drawing.Color c)
-        {
-            return System.Windows.Media.Color.FromArgb(c.A, c.R, c.G, c.B);
         }
     }
 }

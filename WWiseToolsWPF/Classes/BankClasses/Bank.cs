@@ -1,10 +1,10 @@
 ﻿using Newtonsoft.Json;
 using System.IO;
-using WWise_Audio_Tools.Classes.AppClasses;
-using WWise_Audio_Tools.Classes.BankClasses.Chunks;
-using WWise_Audio_Tools.Classes.PackageClasses;
+using WWiseToolsWPF.Classes.AppClasses;
+using WWiseToolsWPF.Classes.BankClasses.Chunks;
+using WWiseToolsWPF.Classes.PackageClasses;
 
-namespace WWise_Audio_Tools.Classes.BankClasses
+namespace WWiseToolsWPF.Classes.BankClasses
 {
     public class Bank
     {

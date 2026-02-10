@@ -1,4 +1,4 @@
-﻿namespace WWise_Audio_Tools.Classes.BankClasses
+﻿namespace WWiseToolsWPF.Classes.BankClasses
 {
     public static class BankChunkMagics
     {
