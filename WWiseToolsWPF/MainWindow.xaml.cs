@@ -56,9 +56,29 @@ namespace WWiseToolsWPF
             MainContent.Content = new Views.FNVHasher();
         }
 
+        private void CollatorButton_Click(object sender, RoutedEventArgs e)
+        {
+            //MainContent.Content = new Views.Collator();
+        }
+
+        private void MassHasherButton_Click(object sender, RoutedEventArgs e)
+        {
+            //MainContent.Content = new Views.MassHasher();
+        }
+
         private void DownloadsButton_Click(object sender, RoutedEventArgs e)
         {
             MainContent.Content = new Views.Downloads();
+        }
+
+        private void HelpButton_Click(object sender, RoutedEventArgs e)
+        {
+            //MainContent.Content = new Views.Help();
+        }
+
+        private void CreditsButton_Click(object sender, RoutedEventArgs e)
+        {
+            //MainContent.Content = new Views.Credits();
         }
 
         // Add other navigation handlers...

@@ -19,9 +19,13 @@
                               HorizontalAlignment="Left" Margin="8" Width="36" Height="36"
                               Checked="HamburgerButton_Checked" Unchecked="HamburgerButton_Unchecked"/>
                 <!--<Button Content="InitScreen" Margin="8" Click="InitScreenButton_Click"/>-->
-                <Button Content="Audio Extractor" Margin="8" Click="AudioExtractorButton_Click"/>
-                <Button Content="FNV Hasher" Margin="8" Click="FNVHasherButton_Click"/>
-                <Button Content="Downloads" Margin="8" Click="DownloadsButton_Click"/>
+                <Button Content="Audio Extractor" Margin="5" Click="AudioExtractorButton_Click"/>
+                <Button Content="FNV Hasher" Margin="5" Click="FNVHasherButton_Click"/>
+                <Button Content="VoiceItems Collator" Margin="5" Click="CollatorButton_Click"/>
+                <Button Content="File-List Hasher" Margin="5" Click="MassHasherButton_Click"/>
+                <Button Content="Downloads" Margin="5" Click="DownloadsButton_Click"/>
+                <Button Content="Help" Margin="0,500,0,0" Click="HelpButton_Click"/>
+                <Button Content="Credits" Margin="0,5,0,0" Click="CreditsButton_Click"/>
             </StackPanel>
         </Border>
 
