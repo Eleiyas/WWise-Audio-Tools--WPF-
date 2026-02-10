@@ -63,7 +63,7 @@ namespace WWiseToolsWPF
 
         private void MassHasherButton_Click(object sender, RoutedEventArgs e)
         {
-            //MainContent.Content = new Views.MassHasher();
+            MainContent.Content = new Views.MassHasher();
         }
 
         private void DownloadsButton_Click(object sender, RoutedEventArgs e)
