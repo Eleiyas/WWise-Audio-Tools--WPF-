@@ -1,0 +1,114 @@
+<UserControl x:Class="WWiseToolsWPF.Views.Credits"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Height="Auto" Width="Auto">
+	<Grid>
+		<Grid.RowDefinitions>
+			<RowDefinition Height="*"/>
+		</Grid.RowDefinitions>
+
+		<StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+			<!--<StackPanel.Background>
+				<LinearGradientBrush EndPoint="0.5,1" StartPoint="0.5,0" SpreadMethod="Pad">
+					<GradientStop Color="#FF3D3D3D"/>
+					<GradientStop Color="White" Offset="1"/>
+				</LinearGradientBrush>
+			</StackPanel.Background>-->
+            <TextBlock Text="Credits" FontSize="26" FontWeight="SemiBold" Foreground="Black" HorizontalAlignment="Center" Margin="0,0,0,12"/>
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+              Padding="10">
+
+                <TextBlock TextWrapping="Wrap"
+               FontFamily="Segoe UI"
+               FontSize="12"
+               Foreground="Gray">
+
+        <Run Text="Huge thanks to:" FontWeight="Bold" FontSize="16"/>
+        <LineBreak/>
+        <LineBreak/>
+
+        <Run Text="&#8226; " />
+        <Hyperlink NavigateUri="https://github.com/AdituV"
+                   RequestNavigate="OnLinkClick">
+            <Run Text="AdituV" FontWeight="Bold"/>
+        </Hyperlink>
+        <LineBreak/>
+        <Run Text="Initial breakthrough of extracting Genshin Impact audio files and the coding of the initial extraction tools."/>
+        <LineBreak/>
+        <LineBreak/>
+
+        <Run Text="&#8226; " />
+            <Run Text="Cecilio" FontWeight="Bold"/>
+        <LineBreak/>
+        <Run Text="Coding of newer, improved tools and helping to fix my messy code."/>
+        <LineBreak/>
+        <LineBreak/>
+
+        <Run Text="&#8226; " />
+        <Hyperlink NavigateUri="https://github.com/Dimbreath"
+                   RequestNavigate="OnLinkClick">
+            <Run Text="Dimbreath" FontWeight="Bold"/>
+        </Hyperlink>
+        <LineBreak/>
+        <Run Text="Helping to fix broken features."/>
+        <LineBreak/>
+        <LineBreak/>
+
+        <Run Text="&#8226; " />
+        <Hyperlink NavigateUri="https://github.com/Dvingerh"
+                   RequestNavigate="OnLinkClick">
+            <Run Text="Dvingerh" FontWeight="Bold"/>
+        </Hyperlink>
+        <LineBreak/>
+        <Run Text="A lot of code used was modified from the &quot;Genshin Audio Exporter&quot;."/>
+        <LineBreak/>
+        <LineBreak/>
+
+        <Run Text="&#8226; " />
+            <Run Text="Echoblast" FontWeight="Bold"/>
+        <LineBreak/>
+        <Run Text="A lot of help in regards to modifying existing tools to do other functions."/>
+        <LineBreak/>
+        <LineBreak/>
+                    
+        <Run Text="&#8226; " />
+        <Hyperlink NavigateUri="https://github.com/Escartem"
+                   RequestNavigate="OnLinkClick">
+            <Run Text="Escartem" FontWeight="Bold"/>
+        </Hyperlink>
+        <LineBreak/>
+        <Run Text="Massive help with CHK implementation and fixing some general code."/>
+        <LineBreak/>
+        <LineBreak/>
+
+        <Run Text="&#8226; " />
+        <Run Text="Honey" FontWeight="Bold"/>
+        <LineBreak/>
+        <Run Text="Giving general pointers and advice as to how Genshin Impact's audio systems functioned."/>
+        <LineBreak/>
+        <LineBreak/>
+
+        <Run Text="&#8226; " />
+        <Run Text="Leo_Chan" FontWeight="Bold"/>
+        <LineBreak/>
+        <Run Text="Helping to fix broken features and make sense of the code."/>
+        <LineBreak/>
+        <LineBreak/>
+
+        <Run Text="&#8226; " />
+        <Run Text="Ninjamask" FontWeight="Bold"/>
+        <LineBreak/>
+        <Run Text="Assisting in audio extraction each patch and maintaining the 'Genshin Sound Catalogue' Google Sheet."/>
+
+                    <TextBlock.Resources>
+                        <Style TargetType="Hyperlink">
+                            <Setter Property="Foreground" Value="Goldenrod"/>
+                            <Setter Property="TextDecorations" Value="{x:Null}"/>
+                        </Style>
+                    </TextBlock.Resources>
+                </TextBlock>
+            </ScrollViewer>
+        
+        </StackPanel>
+	</Grid>
+</UserControl>

@@ -17,6 +17,7 @@ Although it has a focus on extracting audio from several of the big "Anime Gacha
 The main part of the program that allows extraction from WWise-based **PCK** and **BNK** files, although BNK extraction is fairly jank and might throw some errors, or simply break.
 
 The new WPF version also supports a certain game's **CHK** format.
+
 The program can either extract as-is, or use an input **known_filenames** [TSV](https://en.wikipedia.org/wiki/Tab-separated_values) file to automatically rename and sort files upon extract.
 
 During initial **.WEM** extraction, the program will also generate a list of [MD5](https://en.wikipedia.org/wiki/MD5) checksums, in [CSV](https://en.wikipedia.org/wiki/Comma-separated_values) format, which allows for version-diffing. After extraction, it will likewise generate a **.txt** list of extracted files. Both of these combined allow the program to skip re-extracting files that haven't actually changed during future runs.

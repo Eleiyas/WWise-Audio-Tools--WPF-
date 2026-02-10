@@ -20,7 +20,7 @@ namespace WWiseToolsWPF
             MenuBorder.Margin = new Thickness(0);
 
             // Show init screen on startup (make sure Views.InitScreen exists)
-            MainContent.Content = new Views.InitScreen();
+            MainContent.Content = new Views.Init();
 
             // Optionally start expanded
             MenuBorder.Width = ExpandedWidth;
@@ -78,7 +78,7 @@ namespace WWiseToolsWPF
 
         private void CreditsButton_Click(object sender, RoutedEventArgs e)
         {
-            //MainContent.Content = new Views.Credits();
+            MainContent.Content = new Views.Credits();
         }
 
         // Add other navigation handlers...
