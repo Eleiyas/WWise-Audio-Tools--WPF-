@@ -16,7 +16,7 @@
 			</StackPanel.Background>-->
 			<Image Source="D:\Pictures\My Works\Photoshop\Els logo\ElsLogoE-BlackWhite.png" Width="200" Height="200" Stretch="Uniform" Margin="0,0,0,12" />
 			<TextBlock Text="WWise Audio Tools" FontSize="26" FontWeight="SemiBold" Foreground="Black" HorizontalAlignment="Center" Margin="0,0,0,12"/>
-			<TextBlock Text="Coded by Eleiyas" FontSize="16" Foreground="Gray" HorizontalAlignment="Center"/>
+			<TextBlock Text="Coded by Eleiyas" FontSize="16" Foreground="DimGray" HorizontalAlignment="Center"/>
 		</StackPanel>
 	</Grid>
 </UserControl>

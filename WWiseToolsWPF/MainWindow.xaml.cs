@@ -73,7 +73,7 @@ namespace WWiseToolsWPF
 
         private void HelpButton_Click(object sender, RoutedEventArgs e)
         {
-            //MainContent.Content = new Views.Help();
+            MainContent.Content = new Views.Help();
         }
 
         private void CreditsButton_Click(object sender, RoutedEventArgs e)

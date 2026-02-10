@@ -21,7 +21,7 @@
                 <TextBlock TextWrapping="Wrap"
                FontFamily="Segoe UI"
                FontSize="12"
-               Foreground="Gray">
+               Foreground="DimGray">
 
         <Run Text="Huge thanks to:" FontWeight="Bold" FontSize="16"/>
         <LineBreak/>
