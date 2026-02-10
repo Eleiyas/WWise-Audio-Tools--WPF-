@@ -1,29 +1,8 @@
-using Microsoft.Win32;
-using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Drawing;
 using System.Globalization;
 using System.IO;
-using System.IO.Compression;
-using System.Linq;
-using System.Net.Http;
-using System.Reflection;
-using System.Security.Cryptography;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Documents;
 using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Threading;
 using WWiseToolsWPF.Classes.AppClasses;
-using WWiseToolsWPF.Classes.BankClasses;
-using WWiseToolsWPF.Classes.BankClasses.Chunks;
-using WWiseToolsWPF.Classes.PackageClasses;
 using static WWiseToolsWPF.Classes.AppClasses.FNVHash;
 
 namespace WWiseToolsWPF.Views

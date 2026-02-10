@@ -1,0 +1,100 @@
+<UserControl x:Class="WWiseToolsWPF.Views.Collator"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             MinWidth="900"
+             MinHeight="600">
+
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <GroupBox Grid.Row="0"
+				  x:Name="ParametersGroupBox"
+                  Header="Parameters"
+                  FontFamily="Segoe UI"
+                  FontSize="12"
+                  Padding="8"
+                  Margin="0,0,0,12">
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="140"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Label Grid.Row="0" Grid.Column="0" Content="Input Directory:" VerticalAlignment="Center"/>
+                <TextBox Grid.Row="0" Grid.Column="1"
+						 x:Name="InputDirectoryTextBox"
+                         IsReadOnly="True"
+                         Margin="6,4"
+                         Text="No Input Directory Selected."/>
+                <Button Grid.Row="0" Grid.Column="2"
+                        Content="Browse"
+                        Padding="8,4"
+                        Margin="6,4"
+                        Click="InputDirectoryButton_Click"/>
+
+                <Label Grid.Row="1" Grid.Column="0" Content="Output Directory:" VerticalAlignment="Center"/>
+                <TextBox Grid.Row="1" Grid.Column="1"
+						 x:Name="OutputDirectoryTextBox"
+                         IsReadOnly="True"
+                         Margin="6,4"
+                         Text="No Output Directory Selected."/>
+                <Button Grid.Row="1" Grid.Column="2"
+                        Content="Browse"
+                        Padding="8,4"
+                        Margin="6,4"
+                        Click="OutputDirectoryButton_Click"/>
+
+                <Label Grid.Row="3" Grid.Column="0" Content="Prefix Options:" VerticalAlignment="Top"/>
+                <WrapPanel Grid.Row="3" Grid.Column="1" Margin="6,4,0,0">
+                    <CheckBox x:Name="EnglishCheckBox" Content="English" Margin="0,0,12,0" Checked="EnglishCheckBox_Checked" Unchecked="EnglishCheckBox_UnChecked"/>
+                    <CheckBox x:Name="ChineseCheckBox" Content="Chinese" Margin="0,0,12,0" Checked="ChineseCheckBox_Checked" Unchecked="ChineseCheckBox_UnChecked"/>
+                    <CheckBox x:Name="JapaneseCheckBox" Content="Japanese" Margin="0,0,12,0" Checked="JapaneseCheckBox_Checked" Unchecked="JapaneseCheckBox_UnChecked"/>
+                    <CheckBox x:Name="KoreanCheckBox" Content="Korean" Margin="0,0,12,0" Checked="KoreanCheckBox_Checked" Unchecked="KoreanCheckBox_UnChecked"/>
+                </WrapPanel>
+            </Grid>
+        </GroupBox>
+
+        <GroupBox Grid.Row="1"
+                  Header="Processing"
+                  FontFamily="Segoe UI"
+                  FontSize="12"
+                  Padding="6"
+                  Margin="0,0,0,12">
+
+            <RichTextBox x:Name="StatusTextBox"
+                             IsReadOnly="True"
+                             FontFamily="Consolas"
+                             FontSize="12">
+                <FlowDocument PageWidth="10000"/>
+            </RichTextBox>
+        </GroupBox>
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Orientation="Vertical" Margin="0,0,12,0"/>
+
+            <Button Grid.Column="1"
+                    x:Name="RunButton"
+                    Content="Run"
+                    Width="100"
+                    VerticalAlignment="Center"
+                    Click="RunButton_Click" Height="50"
+                    Margin="400,0,0,0"/>
+        </Grid>
+    </Grid>
+</UserControl>

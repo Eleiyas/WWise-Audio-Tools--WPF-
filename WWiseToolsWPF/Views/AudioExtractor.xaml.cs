@@ -1,23 +1,12 @@
-using System;
+using Microsoft.Win32;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Drawing;
 using System.Globalization;
 using System.IO;
-using System.IO.Compression;
-using System.Linq;
-using System.Net.Http;
 using System.Security.Cryptography;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Documents;
-using System.Windows.Media;
 using System.Windows.Threading;
-using Microsoft.Win32;
 using WWiseToolsWPF.Classes.AppClasses;
 using WWiseToolsWPF.Classes.BankClasses;
 using WWiseToolsWPF.Classes.BankClasses.Chunks;
@@ -178,7 +167,7 @@ namespace WWiseToolsWPF.Views
                 return;
             }
             _logger.Enqueue("Selected 'Export to WEM'.", System.Drawing.Color.Green);
-            _logger.Enqueue($"{AppVariables.OutputDirectoryWem}", System.Drawing.Color.Gray);
+            _logger.Enqueue($"{AppVariables.OutputDirectoryWem}", System.Drawing.Color.DimGray);
             UpdateCanExportStatus();
         }
 
@@ -191,7 +180,7 @@ namespace WWiseToolsWPF.Views
                 return;
             }
             _logger.Enqueue("Selected 'Export to WAV'.", System.Drawing.Color.Green);
-            _logger.Enqueue($"{AppVariables.OutputDirectoryWav}", System.Drawing.Color.Gray);
+            _logger.Enqueue($"{AppVariables.OutputDirectoryWav}", System.Drawing.Color.DimGray);
             UpdateCanExportStatus();
         }
 
@@ -204,7 +193,7 @@ namespace WWiseToolsWPF.Views
                 return;
             }
             _logger.Enqueue("Selected 'Export to OGG'.", System.Drawing.Color.Green);
-            _logger.Enqueue($"{AppVariables.OutputDirectoryOgg}", System.Drawing.Color.Gray);
+            _logger.Enqueue($"{AppVariables.OutputDirectoryOgg}", System.Drawing.Color.DimGray);
             UpdateCanExportStatus();
         }
 
@@ -212,31 +201,31 @@ namespace WWiseToolsWPF.Views
             _logger.Enqueue("Selected 'Split Output'.", System.Drawing.Color.Green);
 
         private void SplitOutputCheckBox_UnChecked(object sender, RoutedEventArgs e) =>
-            _logger.Enqueue("Deselected 'Split Output'.", System.Drawing.Color.Gray);
+            _logger.Enqueue("Deselected 'Split Output'.", System.Drawing.Color.DimGray);
 
         private void BankedOutputCheckBox_Checked(object sender, RoutedEventArgs e) =>
-            _logger.Enqueue("Selected 'Banked Output'.", System.Drawing.Color.Gray);
+            _logger.Enqueue("Selected 'Banked Output'.", System.Drawing.Color.DimGray);
 
         private void BankedOutputCheckBox_UnChecked(object sender, RoutedEventArgs e) =>
-            _logger.Enqueue("Deselected 'Banked Output'.", System.Drawing.Color.Gray);
+            _logger.Enqueue("Deselected 'Banked Output'.", System.Drawing.Color.DimGray);
 
         private void LegacyCheckBox_Checked(object sender, RoutedEventArgs e) =>
-            _logger.Enqueue("Selected 'Legacy Output'.", System.Drawing.Color.Gray);
+            _logger.Enqueue("Selected 'Legacy Output'.", System.Drawing.Color.DimGray);
 
         private void LegacyCheckBox_UnChecked(object sender, RoutedEventArgs e) =>
-            _logger.Enqueue("Deselected 'Legacy Output'.", System.Drawing.Color.Gray);
+            _logger.Enqueue("Deselected 'Legacy Output'.", System.Drawing.Color.DimGray);
 
         private void NoLangCheckBox_Checked(object sender, RoutedEventArgs e) =>
-            _logger.Enqueue("Selected 'NoLang'.", System.Drawing.Color.Gray);
+            _logger.Enqueue("Selected 'NoLang'.", System.Drawing.Color.DimGray);
 
         private void NoLangCheckBox_UnChecked(object sender, RoutedEventArgs e) =>
-            _logger.Enqueue("Deselected 'NoLang'.", System.Drawing.Color.Gray);
+            _logger.Enqueue("Deselected 'NoLang'.", System.Drawing.Color.DimGray);
 
         private void SpreadsheetOutputCheckBox_Checked(object sender, RoutedEventArgs e) =>
             _logger.Enqueue("Selected 'Spreadsheet Output'.", System.Drawing.Color.Green);
 
         private void SpreadsheetOutputCheckBox_UnChecked(object sender, RoutedEventArgs e) =>
-            _logger.Enqueue("Deselected 'Spreadsheet Output'.", System.Drawing.Color.Gray);
+            _logger.Enqueue("Deselected 'Spreadsheet Output'.", System.Drawing.Color.DimGray);
 
         private async void ExportButton_Click(object sender, RoutedEventArgs e)
         {
@@ -1066,7 +1055,7 @@ namespace WWiseToolsWPF.Views
             {
                 if (!string.IsNullOrEmpty(existing.Hash) && existing.Hash == md)
                 {
-                    _logger.Enqueue($"{Path.GetFileName(rel)} - SKIPPED (already processed)", System.Drawing.Color.Gray);
+                    _logger.Enqueue($"{Path.GetFileName(rel)} - SKIPPED (already processed)", System.Drawing.Color.DimGray);
                     return;
                 }
             }

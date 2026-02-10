@@ -1,6 +1,4 @@
-﻿using System;
-using System.Windows;
-using System.Windows.Controls;
+﻿using System.Windows;
 using System.Windows.Media.Animation;
 
 namespace WWiseToolsWPF
@@ -58,7 +56,7 @@ namespace WWiseToolsWPF
 
         private void CollatorButton_Click(object sender, RoutedEventArgs e)
         {
-            //MainContent.Content = new Views.Collator();
+            MainContent.Content = new Views.Collator();
         }
 
         private void MassHasherButton_Click(object sender, RoutedEventArgs e)
@@ -81,6 +79,5 @@ namespace WWiseToolsWPF
             MainContent.Content = new Views.Credits();
         }
 
-        // Add other navigation handlers...
     }
 }

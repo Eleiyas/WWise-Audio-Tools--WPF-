@@ -1,10 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using Newtonsoft.Json;
 using System.Collections.Immutable;
 using System.IO;
 using System.Text;
 using WWiseToolsWPF.Classes.AppClasses;
-using Newtonsoft.Json;
 
 namespace WWiseToolsWPF.Classes.PackageClasses
 {

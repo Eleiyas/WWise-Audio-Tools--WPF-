@@ -1,17 +1,9 @@
 using Microsoft.Win32;
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
-using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Documents;
-using System.Windows.Media;
-using System.Windows.Threading;
 using WWiseToolsWPF.Classes.AppClasses;
 using static WWiseToolsWPF.Classes.AppClasses.FNVHash;
 

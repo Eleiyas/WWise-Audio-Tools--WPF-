@@ -1,8 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using Newtonsoft.Json;
 using System.IO;
 using WWiseToolsWPF.Classes.AppClasses;
-using Newtonsoft.Json;
 
 namespace WWiseToolsWPF.Classes.BankClasses.Chunks
 {

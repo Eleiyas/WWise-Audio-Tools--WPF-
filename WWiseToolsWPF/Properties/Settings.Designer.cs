@@ -118,12 +118,16 @@ namespace WWiseToolsWPF.Properties {
 
         [global::System.Configuration.ApplicationScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        [global::System.Configuration.DefaultSettingValueAttribute("No Input Directory Selected.")]
         public string InputDirectory
         {
             get
             {
                 return ((string)(this["InputDirectory"]));
+            }
+            set
+            {
+                this["InputDirectory"] = value;
             }
         }
     }

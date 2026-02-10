@@ -1,9 +1,8 @@
-﻿using System.Collections.Generic;
-
-namespace WWiseToolsWPF.Classes.AppClasses
+﻿namespace WWiseToolsWPF.Classes.AppClasses
 {
     public static class AppVariables
     {
+        private static string inputDirectory = "";
         private static string outputDirectory = "";
 
         private static string knownFilenamesPath = "";
@@ -17,6 +16,7 @@ namespace WWiseToolsWPF.Classes.AppClasses
         private static List<string> wemFiles = new List<string>();
         private static List<string> wavFiles = new List<string>();
 
+        public static string InputDirectory { get; set; }
         public static string OutputDirectory { get; set; }
         public static string OutputDirectoryWem { get; set; }
         public static string OutputDirectoryWav { get; set; }
