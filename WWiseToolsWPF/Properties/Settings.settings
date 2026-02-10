@@ -1,6 +1,42 @@
 ﻿<?xml version='1.0' encoding='utf-8'?>
-<SettingsFile xmlns="http://schemas.microsoft.com/VisualStudio/2004/01/settings" CurrentProfile="(Default)">
-  <Profiles>
-    <Profile Name="(Default)" />
-  </Profiles>
+<SettingsFile xmlns="http://schemas.microsoft.com/VisualStudio/2004/01/settings" CurrentProfile="(Default)" GeneratedClassNamespace="WWiseToolsWPF.Properties" GeneratedClassName="Settings">
+  <Profiles />
+  <Settings>
+    <Setting Name="InputDirectory" Type="System.String" Scope="User">
+      <Value Profile="(Default)">"No Input Directory Selected."</Value>
+    </Setting>
+    <Setting Name="OutputDirectory" Type="System.String" Scope="User">
+      <Value Profile="(Default)">"No Output Directory Selected."</Value>
+    </Setting>
+    <Setting Name="KnownFilenamesPath" Type="System.String" Scope="User">
+      <Value Profile="(Default)">"No KnownFilenames Map Selected."</Value>
+    </Setting>
+    <Setting Name="KnownEventsPath" Type="System.String" Scope="User">
+      <Value Profile="(Default)">"No KnownEvents Map Selected."</Value>
+    </Setting>
+    <Setting Name="WEMOutDir" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="WAVOutDir" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="OGGOutDir" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="InputFiles" Type="System.String" Scope="User">
+      <Value Profile="(Default)">"No Input Files Selected."</Value>
+    </Setting>
+    <Setting Name="ExportWEM" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="ExportWAV" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="ExportOGG" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="ExportSpreadsheet" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+  </Settings>
 </SettingsFile>

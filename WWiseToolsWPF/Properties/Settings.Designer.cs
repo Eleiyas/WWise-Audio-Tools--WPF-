@@ -13,121 +13,157 @@ namespace WWiseToolsWPF.Properties {
     
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
     [global::System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.VisualStudio.Editors.SettingsDesigner.SettingsSingleFileGenerator", "17.14.0.0")]
-    internal sealed partial class Settings : global::System.Configuration.ApplicationSettingsBase
-    {
-
+    internal sealed partial class Settings : global::System.Configuration.ApplicationSettingsBase {
+        
         private static Settings defaultInstance = ((Settings)(global::System.Configuration.ApplicationSettingsBase.Synchronized(new Settings())));
-
-        public static Settings Default
-        {
-            get
-            {
+        
+        public static Settings Default {
+            get {
                 return defaultInstance;
             }
         }
-
+        
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("No Output Directory Selected.")]
-        public string OutputDirectory
-        {
-            get
-            {
+        [global::System.Configuration.DefaultSettingValueAttribute("\"No Input Directory Selected.\"")]
+        public string InputDirectory {
+            get {
+                return ((string)(this["InputDirectory"]));
+            }
+            set {
+                this["InputDirectory"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("\"No Output Directory Selected.\"")]
+        public string OutputDirectory {
+            get {
                 return ((string)(this["OutputDirectory"]));
             }
-            set
-            {
+            set {
                 this["OutputDirectory"] = value;
             }
         }
-
+        
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("False")]
-        public bool ExportWem
-        {
-            get
-            {
-                return ((bool)(this["ExportWem"]));
-            }
-            set
-            {
-                this["ExportWem"] = value;
-            }
-        }
-
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("False")]
-        public bool ExportWav
-        {
-            get
-            {
-                return ((bool)(this["ExportWav"]));
-            }
-            set
-            {
-                this["ExportWav"] = value;
-            }
-        }
-
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("False")]
-        public bool ExportOgg
-        {
-            get
-            {
-                return ((bool)(this["ExportOgg"]));
-            }
-            set
-            {
-                this["ExportOgg"] = value;
-            }
-        }
-
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("")]
-        public string KnownFilenamesPath
-        {
-            get
-            {
+        [global::System.Configuration.DefaultSettingValueAttribute("\"No KnownFilenames Map Selected.\"")]
+        public string KnownFilenamesPath {
+            get {
                 return ((string)(this["KnownFilenamesPath"]));
             }
-            set
-            {
+            set {
                 this["KnownFilenamesPath"] = value;
             }
         }
-
+        
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("")]
-        public string KnownEventsPath
-        {
-            get
-            {
+        [global::System.Configuration.DefaultSettingValueAttribute("\"No KnownEvents Map Selected.\"")]
+        public string KnownEventsPath {
+            get {
                 return ((string)(this["KnownEventsPath"]));
             }
-            set
-            {
+            set {
                 this["KnownEventsPath"] = value;
             }
         }
-
-        [global::System.Configuration.ApplicationScopedSettingAttribute()]
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("No Input Directory Selected.")]
-        public string InputDirectory
-        {
-            get
-            {
-                return ((string)(this["InputDirectory"]));
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string WEMOutDir {
+            get {
+                return ((string)(this["WEMOutDir"]));
             }
-            set
-            {
-                this["InputDirectory"] = value;
+            set {
+                this["WEMOutDir"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string WAVOutDir {
+            get {
+                return ((string)(this["WAVOutDir"]));
+            }
+            set {
+                this["WAVOutDir"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string OGGOutDir {
+            get {
+                return ((string)(this["OGGOutDir"]));
+            }
+            set {
+                this["OGGOutDir"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("\"No Input Files Selected.\"")]
+        public string InputFiles {
+            get {
+                return ((string)(this["InputFiles"]));
+            }
+            set {
+                this["InputFiles"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool ExportWEM {
+            get {
+                return ((bool)(this["ExportWEM"]));
+            }
+            set {
+                this["ExportWEM"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool ExportWAV {
+            get {
+                return ((bool)(this["ExportWAV"]));
+            }
+            set {
+                this["ExportWAV"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool ExportOGG {
+            get {
+                return ((bool)(this["ExportOGG"]));
+            }
+            set {
+                this["ExportOGG"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool ExportSpreadsheet {
+            get {
+                return ((bool)(this["ExportSpreadsheet"]));
+            }
+            set {
+                this["ExportSpreadsheet"] = value;
             }
         }
     }

@@ -27,6 +27,9 @@ namespace WWiseToolsWPF.Views
         private bool inputFileSelected = false;
         private bool outputDirSelected = false;
 
+        // Settings
+        private string InDir = Properties.Settings.Default.InputDirectory;
+        private string OutDir = Properties.Settings.Default.OutputDirectory;
 
         public MassHasher()
         {
@@ -35,8 +38,7 @@ namespace WWiseToolsWPF.Views
             _logger = new Logger(StatusTextBox);
             Unloaded += (_, _) => _logger?.Dispose();
 
-            // Keep the same default texts as the original
-            InputTextBox.Text = "No Input File Selected.";
+            InputTextBox.Text = Properties.Settings.Default.InputDirectory ?? "No Input File Selected.";
             OutputDirectoryTextBox.Text = Properties.Settings.Default.OutputDirectory ?? "No Output Directory Selected.";
 
             LoadKnownHashes(@"Libs\known_hashes.txt");
@@ -73,10 +75,10 @@ namespace WWiseToolsWPF.Views
             bool? res = fbd.ShowDialog();
             if (res == true)
             {
-                AppVariables.OutputDirectory = fbd.FolderName;
+                OutDir = fbd.FolderName;
                 OutputDirectoryTextBox.Text = fbd.FolderName;
 
-                _logger.Enqueue($"Output set as: {AppVariables.OutputDirectory}");
+                _logger.Enqueue($"Output set as: {OutDir}");
 
                 outputDirSelected = true;
             }
@@ -171,7 +173,7 @@ namespace WWiseToolsWPF.Views
                   } */
             }
 
-            File.WriteAllLines(Path.Join(AppVariables.OutputDirectory, "GeneratedOutput.txt"), fileOutputList);
+            File.WriteAllLines(Path.Join(OutDir, "GeneratedOutput.txt"), fileOutputList);
             _logger.Enqueue("Processing completed.");
         }
 

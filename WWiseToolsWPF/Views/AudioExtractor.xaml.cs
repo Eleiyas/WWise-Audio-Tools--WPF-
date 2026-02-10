@@ -35,9 +35,20 @@ namespace WWiseToolsWPF.Views
         private bool outputDirSelected = false;
 
         // Data
+        private static List<string> inputFiles = new List<string>();
         public Dictionary<string, string> KnownFilenames { get; } = new();
         public Dictionary<string, string> KnownEvents { get; } = new();
         public enum OutputFormat { Wem, Wav, Ogg }
+
+        // Settings
+        private string InDir = Properties.Settings.Default.InputDirectory;
+        private string OutDir = Properties.Settings.Default.OutputDirectory;
+        private bool ExportWEM = Properties.Settings.Default.ExportWEM;
+        private bool ExportWAV = Properties.Settings.Default.ExportWAV;
+        private bool ExportOGG = Properties.Settings.Default.ExportOGG;
+        private string WEMOutDir = Properties.Settings.Default.WEMOutDir;
+        private string WAVOutDir = Properties.Settings.Default.WAVOutDir;
+        private string OGGOutDir = Properties.Settings.Default.OGGOutDir;
 
         public AudioExtractor()
         {
@@ -46,16 +57,16 @@ namespace WWiseToolsWPF.Views
             _logger = new Logger(StatusTextBox);
             Unloaded += (_, _) => _logger?.Dispose();
 
-            // Keep the same default texts as the original
-            InputFilesTextBox.Text = "No Input Files Selected.";
+            // TextBoxes
+            InputFilesTextBox.Text = Properties.Settings.Default.InputFiles ?? "No Input Files Selected.";
             OutputDirectoryTextBox.Text = Properties.Settings.Default.OutputDirectory ?? "No Output Directory Selected.";
-            KnownFilenamesTextBox.Text = "No Known_Filenames TSV Selected.";
-            KnownEventsTextBox.Text = "No Known_Events TSV Selected.";
+            KnownFilenamesTextBox.Text = Properties.Settings.Default.KnownFilenamesPath ?? "No KnownFilenames Map Selected.";
+            KnownEventsTextBox.Text = Properties.Settings.Default.KnownEventsPath ?? "No KnownEvents Map Selected.";
 
-            // restore saved radio state where possible
-            WEMExportRadioButton.IsChecked = Properties.Settings.Default.ExportWem;
-            WAVExportRadioButton.IsChecked = Properties.Settings.Default.ExportWav;
-            OGGExportRadioButton.IsChecked = Properties.Settings.Default.ExportOgg;
+            // Restore saved radio state where possible
+            WEMExportRadioButton.IsChecked = ExportWEM;
+            WAVExportRadioButton.IsChecked = ExportWAV;
+            OGGExportRadioButton.IsChecked = ExportOGG;
 
             doUpdateFormatSettings = true;
             UpdateCanExportStatus();
@@ -74,40 +85,38 @@ namespace WWiseToolsWPF.Views
             bool? result = ofd.ShowDialog();
             if (result == true)
             {
-                AppVariables.InputFiles.Clear();
-                AppVariables.InputFiles = ofd.FileNames.ToList();
+                inputFiles.Clear();
+                inputFiles = ofd.FileNames.ToList();
 
-                foreach (var filePath in AppVariables.InputFiles)
+                foreach (var filePath in inputFiles)
                 {
                     var fileName = Path.GetFileName(filePath);
                     var folderName = Path.GetFileName(Path.GetDirectoryName(filePath) ?? string.Empty);
                     var outputLine = folderName + "\\" + fileName;
 
-                    InputFilesTextBox.Text = $"Selected {AppVariables.InputFiles.Count} WWise file{(AppVariables.InputFiles.Count > 1 ? "s" : "")} to process.";
+                    InputFilesTextBox.Text = $"Selected {inputFiles.Count} WWise file{(inputFiles.Count > 1 ? "s" : "")} to process.";
                     _logger.Enqueue($"Successfully loaded {outputLine}", System.Drawing.Color.Green);
                 }
             }
             UpdateCanExportStatus();
         }
 
-        // replaced WinForms-style dialog usage errors with explicit WinForms aliasing;
-        // this avoids ambiguity and works in WPF projects that reference System.Windows.Forms.
         private void OutputDirectoryBrowse_Click(object sender, RoutedEventArgs e)
         {
             var fbd = new OpenFolderDialog();
             bool? res = fbd.ShowDialog();
             if (res == true)
             {
-                AppVariables.OutputDirectory = fbd.FolderName;
+                OutDir = fbd.FolderName;
                 OutputDirectoryTextBox.Text = fbd.FolderName;
 
-                AppVariables.OutputDirectoryWem = Path.Combine(AppVariables.OutputDirectory, "Wem");
-                AppVariables.OutputDirectoryWav = Path.Combine(AppVariables.OutputDirectory, "Wav");
-                AppVariables.OutputDirectoryOgg = Path.Combine(AppVariables.OutputDirectory, "Ogg");
+                WEMOutDir = Path.Combine(OutDir, "WEM");
+                WAVOutDir = Path.Combine(OutDir, "WAV");
+                OGGOutDir = Path.Combine(OutDir, "OGG");
 
                 outputDirSelected = true;
 
-                _logger.Enqueue($"Output set as: {AppVariables.OutputDirectory}", System.Drawing.Color.Green);
+                _logger.Enqueue($"Output set as: {OutDir}", System.Drawing.Color.Green);
             }
             UpdateCanExportStatus();
         }
@@ -167,7 +176,7 @@ namespace WWiseToolsWPF.Views
                 return;
             }
             _logger.Enqueue("Selected 'Export to WEM'.", System.Drawing.Color.Green);
-            _logger.Enqueue($"{AppVariables.OutputDirectoryWem}", System.Drawing.Color.DimGray);
+            _logger.Enqueue($"{WEMOutDir}", System.Drawing.Color.DimGray);
             UpdateCanExportStatus();
         }
 
@@ -180,7 +189,7 @@ namespace WWiseToolsWPF.Views
                 return;
             }
             _logger.Enqueue("Selected 'Export to WAV'.", System.Drawing.Color.Green);
-            _logger.Enqueue($"{AppVariables.OutputDirectoryWav}", System.Drawing.Color.DimGray);
+            _logger.Enqueue($"{WAVOutDir}", System.Drawing.Color.DimGray);
             UpdateCanExportStatus();
         }
 
@@ -193,7 +202,7 @@ namespace WWiseToolsWPF.Views
                 return;
             }
             _logger.Enqueue("Selected 'Export to OGG'.", System.Drawing.Color.Green);
-            _logger.Enqueue($"{AppVariables.OutputDirectoryOgg}", System.Drawing.Color.DimGray);
+            _logger.Enqueue($"{OGGOutDir}", System.Drawing.Color.DimGray);
             UpdateCanExportStatus();
         }
 
@@ -248,15 +257,15 @@ namespace WWiseToolsWPF.Views
             TotalProgressBar.Value = 0;
             CurrentProgressBar.Value = 0;
 
-            Directory.CreateDirectory(AppVariables.OutputDirectoryWem);
+            Directory.CreateDirectory(WEMOutDir);
 
             try
             {
-                int itemCount = Math.Max(1, AppVariables.InputFiles.Count);
+                int itemCount = Math.Max(1, inputFiles.Count);
                 CurrentProgressBar.Maximum = itemCount;
                 TotalProgressBar.Maximum = itemCount;
 
-                _logger.Enqueue($"Exporting {AppVariables.InputFiles.Count} files", System.Drawing.Color.Purple);
+                _logger.Enqueue($"Exporting {inputFiles.Count} files", System.Drawing.Color.Purple);
 
                 try
                 {
@@ -268,7 +277,7 @@ namespace WWiseToolsWPF.Views
                     _checksumIndex = new ConcurrentDictionary<string, (string, string)>();
                 }
 
-                var queue = new ConcurrentQueue<string>(AppVariables.InputFiles);
+                var queue = new ConcurrentQueue<string>(inputFiles);
                 int completed = 0;
                 int workerCount = Math.Max(1, Environment.ProcessorCount / 2);
                 var workers = new List<Task>();
@@ -303,15 +312,15 @@ namespace WWiseToolsWPF.Views
 
                 await Task.WhenAll(workers);
 
-                if (AppVariables.ExportWem && SplitOutputCheckBox.IsChecked != true && NoLangCheckBox.IsChecked != true)
+                if (ExportWEM && SplitOutputCheckBox.IsChecked != true && NoLangCheckBox.IsChecked != true)
                 {
                     GenerateMD5Checksums();
                 }
 
-                if (AppVariables.ExportWav || AppVariables.ExportOgg)
+                if (ExportWAV || ExportOGG)
                 {
-                    Directory.CreateDirectory(AppVariables.OutputDirectoryWav);
-                    if (AppVariables.ExportOgg) Directory.CreateDirectory(AppVariables.OutputDirectoryOgg);
+                    Directory.CreateDirectory(WAVOutDir);
+                    if (ExportOGG) Directory.CreateDirectory(OGGOutDir);
                     GenerateMD5Checksums();
                 }
 
@@ -396,14 +405,14 @@ namespace WWiseToolsWPF.Views
         private void UpdateCanExportStatus()
         {
             bool canExport = true;
-            AppVariables.ExportWem = WEMExportRadioButton.IsChecked == true;
-            AppVariables.ExportWav = WAVExportRadioButton.IsChecked == true;
-            AppVariables.ExportOgg = OGGExportRadioButton.IsChecked == true;
+            ExportWEM = WEMExportRadioButton.IsChecked == true;
+            ExportWAV = WAVExportRadioButton.IsChecked == true;
+            ExportOGG = OGGExportRadioButton.IsChecked == true;
 
-            if (!AppVariables.ExportWem && !AppVariables.ExportWav && !AppVariables.ExportOgg)
+            if (!ExportWEM && !ExportWAV && !ExportOGG)
                 canExport = false;
 
-            if (AppVariables.InputFiles.Count == 0 || !Directory.Exists(OutputDirectoryTextBox.Text))
+            if (inputFiles.Count == 0 || !Directory.Exists(OutputDirectoryTextBox.Text))
                 canExport = false;
 
             if (!Directory.Exists(Path.Combine("Tools", "vgmstream-win")))
@@ -516,7 +525,7 @@ namespace WWiseToolsWPF.Views
         private void LoadChecksumIndex()
         {
             _checksumIndex = new ConcurrentDictionary<string, (string Hash, string Date)>();
-            string directoryName = Path.GetFileName(AppVariables.OutputDirectory);
+            string directoryName = Path.GetFileName(OutDir);
             string processedFilesFilePath = Path.Combine("Logging\\", directoryName + "-WEM_Checksums.csv");
             if (!File.Exists(processedFilesFilePath)) return;
             foreach (var line in File.ReadLines(processedFilesFilePath))
@@ -535,7 +544,7 @@ namespace WWiseToolsWPF.Views
         private void SaveChecksumIndex()
         {
             if (_checksumIndex is null) return;
-            string directoryName = Path.GetFileName(AppVariables.OutputDirectory);
+            string directoryName = Path.GetFileName(OutDir);
             string processedFilesFilePath = Path.Combine("Logging\\", directoryName + "-WEM_Checksums.csv");
             var lines = _checksumIndex.Select(kv => kv.Key + "," + kv.Value.Hash + "," + kv.Value.Date);
             Directory.CreateDirectory("Logging\\");
@@ -544,7 +553,7 @@ namespace WWiseToolsWPF.Views
 
         private void GenerateMD5Checksums()
         {
-            string directoryName = Path.GetFileName(AppVariables.OutputDirectory);
+            string directoryName = Path.GetFileName(OutDir);
             string processedFilesFilePath = Path.Combine("Logging\\", directoryName + "-WEM_Checksums.csv");
 
             var processedFileHashes = new ConcurrentDictionary<string, (string Hash, string Date)>();
@@ -573,7 +582,7 @@ namespace WWiseToolsWPF.Views
                 _checksumIndex[kv.Key] = kv.Value;
             }
 
-            var files = Directory.EnumerateFiles(AppVariables.OutputDirectoryWem, "*", SearchOption.AllDirectories);
+            var files = Directory.EnumerateFiles(WEMOutDir, "*", SearchOption.AllDirectories);
             var po = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2) };
 
             Parallel.ForEach(files, po, file =>
@@ -582,7 +591,7 @@ namespace WWiseToolsWPF.Views
                 {
                     string fileName = Path.GetFileName(file);
                     string folderPath = Path.GetDirectoryName(file) ?? string.Empty;
-                    string folderName = folderPath.Length > AppVariables.OutputDirectoryWem.Length ? folderPath.Substring(AppVariables.OutputDirectoryWem.Length) : string.Empty;
+                    string folderName = folderPath.Length > WEMOutDir.Length ? folderPath.Substring(WEMOutDir.Length) : string.Empty;
                     if (folderName.StartsWith(Path.DirectorySeparatorChar.ToString()) || folderName.StartsWith(Path.AltDirectorySeparatorChar.ToString()))
                         folderName = folderName.Substring(1);
                     string concatenatedFolders = string.Join("\\", folderName.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Where(f => !string.IsNullOrEmpty(f)));
@@ -663,7 +672,7 @@ namespace WWiseToolsWPF.Views
 
         public string GetPckExternalOutputPath(string filepath, FileTable.FileEntry entry, OutputFormat format)
         {
-            var outputPath = AppVariables.OutputDirectoryWem;
+            var outputPath = WEMOutDir;
             if (IsCheckedSafe(SplitOutputCheckBox))
             {
                 var pckName = Path.GetFileNameWithoutExtension(filepath);
@@ -682,10 +691,10 @@ namespace WWiseToolsWPF.Views
 
         public string GetPckStreamOutputPath(FileTable.FileEntry entry, OutputFormat format)
         {
-            var outputPath = AppVariables.OutputDirectoryWem;
+            var outputPath = WEMOutDir;
             if (IsCheckedSafe(SplitOutputCheckBox))
             {
-                foreach (var filepath in AppVariables.InputFiles)
+                foreach (var filepath in inputFiles)
                 {
                     var pckName = Path.GetFileNameWithoutExtension(filepath);
                     outputPath = Path.Join(outputPath, pckName);
@@ -705,10 +714,10 @@ namespace WWiseToolsWPF.Views
 
         public string GetPckBnkWemOutputPath(DataIndexChunk.FileEntry entry, BankHeader header, OutputFormat format)
         {
-            var outputPath = AppVariables.OutputDirectoryWem;
+            var outputPath = WEMOutDir;
             if (IsCheckedSafe(SplitOutputCheckBox))
             {
-                foreach (var filepath in AppVariables.InputFiles)
+                foreach (var filepath in inputFiles)
                 {
                     var pckName = Path.GetFileNameWithoutExtension(filepath);
                     outputPath = Path.Join(outputPath, pckName);
@@ -752,7 +761,7 @@ namespace WWiseToolsWPF.Views
                         await ProcessCHKAsync(data, filepath);
                         break;
                     case ".wem":
-                        var outPath = filepath.Replace(AppVariables.OutputDirectory, AppVariables.OutputDirectoryWem);
+                        var outPath = filepath.Replace(OutDir, WEMOutDir);
                         EnsureParentDirectory(outPath);
                         await ProcessWemAsync(data, outPath);
                         break;
@@ -944,13 +953,13 @@ namespace WWiseToolsWPF.Views
                 var wemPath = GetPckExternalOutputPath(filepath, entry, OutputFormat.Wem);
                 EnsureParentDirectory(wemPath);
                 await ProcessWemAsync(data, wemPath);
-                if (AppVariables.ExportWav || AppVariables.ExportOgg)
+                if (ExportWAV || ExportOGG)
                 {
-                    var wavPath = wemPath.Replace(AppVariables.OutputDirectoryWem, AppVariables.OutputDirectoryWav).Replace(".wem", ".wav");
+                    var wavPath = wemPath.Replace(WEMOutDir, WAVOutDir).Replace(".wem", ".wav");
                     await ConvertWemBytesToWavFileAsync(data, wavPath);
-                    if (AppVariables.ExportOgg)
+                    if (ExportOGG)
                     {
-                        var oggPath = wavPath.Replace(AppVariables.OutputDirectoryWav, AppVariables.OutputDirectoryOgg).Replace(".wav", ".ogg");
+                        var oggPath = wavPath.Replace(WAVOutDir, OGGOutDir).Replace(".wav", ".ogg");
                         await ConvertWavFileToOggAsync(wavPath, oggPath);
                     }
                 }
@@ -960,9 +969,9 @@ namespace WWiseToolsWPF.Views
                 var wavPath = GetPckExternalOutputPath(filepath, entry, OutputFormat.Wav);
                 EnsureParentDirectory(wavPath);
                 await File.WriteAllBytesAsync(wavPath, data);
-                if (AppVariables.ExportOgg)
+                if (ExportOGG)
                 {
-                    var oggPath = wavPath.Replace(AppVariables.OutputDirectoryWav, AppVariables.OutputDirectoryOgg).Replace(".wav", ".ogg");
+                    var oggPath = wavPath.Replace(WAVOutDir, OGGOutDir).Replace(".wav", ".ogg");
                     await ConvertWavFileToOggAsync(wavPath, oggPath);
                 }
             }
@@ -983,13 +992,13 @@ namespace WWiseToolsWPF.Views
                 var wemPath = GetPckStreamOutputPath(entry, OutputFormat.Wem);
                 EnsureParentDirectory(wemPath);
                 await ProcessWemAsync(data, wemPath);
-                if (AppVariables.ExportWav || AppVariables.ExportOgg)
+                if (ExportWAV || ExportOGG)
                 {
-                    var wavPath = wemPath.Replace(AppVariables.OutputDirectoryWem, AppVariables.OutputDirectoryWav).Replace(".wem", ".wav");
+                    var wavPath = wemPath.Replace(WEMOutDir, WAVOutDir).Replace(".wem", ".wav");
                     await ConvertWemBytesToWavFileAsync(data, wavPath);
-                    if (AppVariables.ExportOgg)
+                    if (ExportOGG)
                     {
-                        var oggPath = wavPath.Replace(AppVariables.OutputDirectoryWav, AppVariables.OutputDirectoryOgg).Replace(".wav", ".ogg");
+                        var oggPath = wavPath.Replace(WAVOutDir, OGGOutDir).Replace(".wav", ".ogg");
                         await ConvertWavFileToOggAsync(wavPath, oggPath);
                     }
                 }
@@ -999,9 +1008,9 @@ namespace WWiseToolsWPF.Views
                 var wavPath = GetPckStreamOutputPath(entry, OutputFormat.Wav);
                 EnsureParentDirectory(wavPath);
                 await File.WriteAllBytesAsync(wavPath, data);
-                if (AppVariables.ExportOgg)
+                if (ExportOGG)
                 {
-                    var oggPath = wavPath.Replace(AppVariables.OutputDirectoryWav, AppVariables.OutputDirectoryOgg).Replace(".wav", ".ogg");
+                    var oggPath = wavPath.Replace(WAVOutDir, OGGOutDir).Replace(".wav", ".ogg");
                     await ConvertWavFileToOggAsync(wavPath, oggPath);
                 }
             }
@@ -1028,9 +1037,9 @@ namespace WWiseToolsWPF.Views
                 var wavPath = GetPckBnkWemOutputPath(entry, header, OutputFormat.Wav);
                 EnsureParentDirectory(wavPath);
                 await File.WriteAllBytesAsync(wavPath, data);
-                if (AppVariables.ExportOgg)
+                if (ExportOGG)
                 {
-                    var oggPath = wavPath.Replace(AppVariables.OutputDirectoryWav, AppVariables.OutputDirectoryOgg).Replace(".wav", ".ogg");
+                    var oggPath = wavPath.Replace(WAVOutDir, OGGOutDir).Replace(".wav", ".ogg");
                     await ConvertWavFileToOggAsync(wavPath, oggPath);
                 }
             }
@@ -1045,7 +1054,7 @@ namespace WWiseToolsWPF.Views
         {
             EnsureParentDirectory(path);
 
-            var rel = Path.GetRelativePath(AppVariables.OutputDirectoryWem, path).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var rel = Path.GetRelativePath(WEMOutDir, path).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
             if (string.IsNullOrEmpty(rel)) rel = Path.GetFileName(path);
 
             var md = GetHashFromBytes(data);
@@ -1069,14 +1078,14 @@ namespace WWiseToolsWPF.Views
             }
             catch { }
 
-            if (AppVariables.ExportOgg || AppVariables.ExportWav)
+            if (ExportOGG || ExportWAV)
             {
-                var wavPath = path.Replace(AppVariables.OutputDirectoryWem, AppVariables.OutputDirectoryWav).Replace(".wem", ".wav");
+                var wavPath = path.Replace(WEMOutDir, WAVOutDir).Replace(".wem", ".wav");
                 await ConvertWemBytesToWavFileAsync(data, wavPath);
 
-                if (AppVariables.ExportOgg)
+                if (ExportOGG)
                 {
-                    var oggPath = wavPath.Replace(AppVariables.OutputDirectoryWav, AppVariables.OutputDirectoryOgg).Replace(".wav", ".ogg");
+                    var oggPath = wavPath.Replace(WAVOutDir, OGGOutDir).Replace(".wav", ".ogg");
                     await ConvertWavFileToOggAsync(wavPath, oggPath);
                 }
             }
@@ -1183,7 +1192,7 @@ namespace WWiseToolsWPF.Views
             bool spreadsheetEnabled = false;
             Dispatcher.Invoke(() => { spreadsheetEnabled = SpreadsheetOutputCheckBox.IsChecked == true; });
 
-            string directoryName = Path.GetFileName(AppVariables.OutputDirectory);
+            string directoryName = Path.GetFileName(OutDir);
             string processedFilesFilePath = Path.Combine("Logging\\", directoryName + "-OutputFiles.txt");
             var processedDict = new ConcurrentDictionary<string, byte>();
             var newFiles = new ConcurrentBag<string>();
@@ -1196,14 +1205,14 @@ namespace WWiseToolsWPF.Views
                 }
             }
 
-            var filesEnum = Directory.EnumerateFiles(AppVariables.OutputDirectory, "*", SearchOption.AllDirectories);
+            var filesEnum = Directory.EnumerateFiles(OutDir, "*", SearchOption.AllDirectories);
             Parallel.ForEach(filesEnum, file =>
             {
                 try
                 {
                     string fileName = Path.GetFileName(file);
                     string folderPath = Path.GetDirectoryName(file) ?? string.Empty;
-                    string folderName = folderPath.Length > AppVariables.OutputDirectory.Length ? folderPath.Substring(AppVariables.OutputDirectory.Length) : string.Empty;
+                    string folderName = folderPath.Length > OutDir.Length ? folderPath.Substring(OutDir.Length) : string.Empty;
                     if (folderName.StartsWith(Path.DirectorySeparatorChar.ToString()) || folderName.StartsWith(Path.AltDirectorySeparatorChar.ToString()))
                         folderName = folderName.Substring(1);
                     string[] folders = folderName.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
@@ -1233,7 +1242,7 @@ namespace WWiseToolsWPF.Views
             if (spreadsheetEnabled)
             {
                 List<string> OutputFiles = new();
-                foreach (string file in Directory.GetFiles(AppVariables.OutputDirectoryWem, "*", SearchOption.AllDirectories))
+                foreach (string file in Directory.GetFiles(WEMOutDir, "*", SearchOption.AllDirectories))
                 {
                     if (!OutputFiles.Contains(file)) OutputFiles.Add(file);
                 }
@@ -1255,22 +1264,22 @@ namespace WWiseToolsWPF.Views
 
         private void Cleanup()
         {
-            if (AppVariables.ExportWav)
+            if (ExportWAV)
             {
-                foreach (string dirPath in Directory.GetDirectories(AppVariables.OutputDirectoryWem))
+                foreach (string dirPath in Directory.GetDirectories(WEMOutDir))
                 {
                     Directory.Delete(dirPath, true);
                     _logger.Enqueue($"Deleting: {dirPath}", System.Drawing.Color.Red);
                 }
             }
-            if (AppVariables.ExportOgg)
+            if (ExportOGG)
             {
-                foreach (string dirPath in Directory.GetDirectories(AppVariables.OutputDirectoryWem))
+                foreach (string dirPath in Directory.GetDirectories(WEMOutDir))
                 {
                     Directory.Delete(dirPath, true);
                     _logger.Enqueue($"Deleting: {dirPath}", System.Drawing.Color.Red);
                 }
-                foreach (string dirPath in Directory.GetDirectories(AppVariables.OutputDirectoryWav))
+                foreach (string dirPath in Directory.GetDirectories(WAVOutDir))
                 {
                     Directory.Delete(dirPath, true);
                     _logger.Enqueue($"Deleting: {dirPath}", System.Drawing.Color.Red);
@@ -1280,7 +1289,7 @@ namespace WWiseToolsWPF.Views
             var dlg = MessageBox.Show("Delete all input files?", "Confirmation", MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (dlg == MessageBoxResult.Yes)
             {
-                foreach (var filePath in AppVariables.InputFiles)
+                foreach (var filePath in inputFiles)
                 {
                     try
                     {
@@ -1300,24 +1309,24 @@ namespace WWiseToolsWPF.Views
         #region Unused / Leftover
         private async Task ProcessCHKWemAsync(byte[] data, uint wemId, string sourceFilePath)
         {
-            var wemPath = Path.Combine(AppVariables.OutputDirectoryWem, "vfs", Path.GetFileNameWithoutExtension(sourceFilePath), $"{wemId}.wem");
+            var wemPath = Path.Combine(WEMOutDir, "vfs", Path.GetFileNameWithoutExtension(sourceFilePath), $"{wemId}.wem");
 
             EnsureParentDirectory(wemPath);
 
             await ProcessWemAsync(data, wemPath);
 
-            if (AppVariables.ExportWav || AppVariables.ExportOgg)
+            if (ExportWAV || ExportOGG)
             {
                 var wavPath = wemPath
-                    .Replace(AppVariables.OutputDirectoryWem, AppVariables.OutputDirectoryWav)
+                    .Replace(WEMOutDir, WAVOutDir)
                     .Replace(".wem", ".wav");
 
                 await ConvertWemBytesToWavFileAsync(data, wavPath);
 
-                if (AppVariables.ExportOgg)
+                if (ExportOGG)
                 {
                     var oggPath = wavPath
-                        .Replace(AppVariables.OutputDirectoryWav, AppVariables.OutputDirectoryOgg)
+                        .Replace(WAVOutDir, OGGOutDir)
                         .Replace(".wav", ".ogg");
 
                     await ConvertWavFileToOggAsync(wavPath, oggPath);

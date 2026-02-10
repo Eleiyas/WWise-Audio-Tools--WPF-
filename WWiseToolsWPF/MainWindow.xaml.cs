@@ -17,7 +17,7 @@ namespace WWiseToolsWPF
             MenuBorder.HorizontalAlignment = HorizontalAlignment.Left;
             MenuBorder.Margin = new Thickness(0);
 
-            // Show init screen on startup (make sure Views.InitScreen exists)
+            // Show init screen on startup
             MainContent.Content = new Views.Init();
 
             // Optionally start expanded
