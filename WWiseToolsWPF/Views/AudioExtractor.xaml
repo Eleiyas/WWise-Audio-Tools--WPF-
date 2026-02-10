@@ -105,11 +105,11 @@
                 <!-- Export options -->
                 <Label Grid.Row="5" Grid.Column="0" Content="Export Options:" VerticalAlignment="Top"/>
                 <WrapPanel Grid.Row="5" Grid.Column="1" Margin="6,4,0,0">
-                    <CheckBox x:Name="SplitOutputCheckBox" Content="Split Output" Margin="0,0,12,0"/>
-                    <CheckBox x:Name="BankedOutputCheckBox" Content="Banked Output" Margin="0,0,12,0"/>
-                    <CheckBox x:Name="LegacyCheckBox" Content="Legacy" Margin="0,0,12,0"/>
-                    <CheckBox x:Name="NoLangCheckBox" Content="NoLang" Margin="0,0,12,0"/>
-                    <CheckBox x:Name="SpreadsheetOutputCheckBox" Content="Spreadsheet Output"/>
+                    <CheckBox x:Name="SplitOutputCheckBox" Content="Split Output" Margin="0,0,12,0" Checked="SplitOutputCheckBox_Checked" Unchecked="SplitOutputCheckBox_UnChecked"/>
+                    <CheckBox x:Name="BankedOutputCheckBox" Content="Banked Output" Margin="0,0,12,0" Checked="BankedOutputCheckBox_Checked" Unchecked="BankedOutputCheckBox_UnChecked"/>
+                    <CheckBox x:Name="LegacyCheckBox" Content="Legacy" Margin="0,0,12,0" Checked="LegacyCheckBox_Checked" Unchecked="LegacyCheckBox_UnChecked"/>
+                    <CheckBox x:Name="NoLangCheckBox" Content="NoLang" Margin="0,0,12,0" Checked="NoLangCheckBox_Checked" Unchecked="NoLangCheckBox_UnChecked"/>
+                    <CheckBox x:Name="SpreadsheetOutputCheckBox" Content="Spreadsheet Output" Checked="SpreadsheetOutputCheckBox_Checked" Unchecked="SpreadsheetOutputCheckBox_UnChecked"/>
                 </WrapPanel>
             </Grid>
         </GroupBox>
