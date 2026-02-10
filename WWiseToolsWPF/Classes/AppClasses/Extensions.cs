@@ -24,7 +24,7 @@ namespace WWise_Audio_Tools.Classes.AppClasses
                     return ".wem";
                 case 0x4478293A: // ':)xD' → Endfield .chk
                     return ".chk";
-                case 0x3A928744: // ':)xD' → Endfield .chk
+                case 0x3A297844: // ':)xD' → Endfield .chk
                     return ".chk";
             }
             return ".bin"; // fallback for unknown files

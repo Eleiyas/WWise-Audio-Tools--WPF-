@@ -714,50 +714,53 @@ namespace WWiseToolsWPF.Views
         {
             static uint Key(uint seed)
             {
-                unchecked
-                {
-                    uint k = ((seed & 0xFF) ^ 0x9C5A0B29u) * 81861667u;
-                    k = (k ^ ((seed >> 8) & 0xFF)) * 81861667u;
-                    k = (k ^ ((seed >> 16) & 0xFF)) * 81861667u;
-                    k = (k ^ ((seed >> 24) & 0xFF)) * 81861667u;
-                    return k;
-                }
+                uint temp = unchecked(((seed & 0xFF) ^ 0x9C5A0B29) * 81861667);
+                temp = unchecked((temp ^ (seed >> 8) & 0xFF) * 81861667);
+                temp = unchecked((temp ^ (seed >> 16) & 0xFF) * 81861667);
+                temp = unchecked((temp ^ (seed >> 24) & 0xFF) * 81861667);
+                return temp;
             }
 
-            void Decrypt(byte[] buffer, int offset, int count, uint seed)
+            static void Decrypt(byte[] data, int offset, int count, uint seed)
             {
                 uint keySeed = seed;
-                int index = offset;
-                int remaining = count;
-                int alignment = offset & 3;
 
-                // head
-                if (alignment != 0)
-                {
-                    uint keyValue = Key(keySeed++);
-                    int toAlign = Math.Min(4 - alignment, remaining);
-                    for (int i = 0; i < toAlign; i++)
-                        buffer[index++] ^= (byte)((keyValue >> ((alignment + i) * 8)));
-                    remaining -= toAlign;
-                }
+                int dataIndex = offset;
+                int remaining = count;
 
                 // body
-                while (remaining >= 4)
+                int nBlocks = remaining / 4;
+                for (int i = 0; i < nBlocks; i++)
                 {
-                    uint value = BitConverter.ToUInt32(buffer, index) ^ Key(keySeed++);
-                    buffer[index++] = (byte)value;
-                    buffer[index++] = (byte)(value >> 8);
-                    buffer[index++] = (byte)(value >> 16);
-                    buffer[index++] = (byte)(value >> 24);
-                    remaining -= 4;
+                    uint keyValue = Key(keySeed);
+
+                    uint dataValue =
+                        (uint)(data[dataIndex]
+                        | (data[dataIndex + 1] << 8)
+                        | (data[dataIndex + 2] << 16)
+                        | (data[dataIndex + 3] << 24));
+
+                    dataValue ^= keyValue;
+
+                    data[dataIndex] = (byte)(dataValue & 0xFF);
+                    data[dataIndex + 1] = (byte)((dataValue >> 8) & 0xFF);
+                    data[dataIndex + 2] = (byte)((dataValue >> 16) & 0xFF);
+                    data[dataIndex + 3] = (byte)((dataValue >> 24) & 0xFF);
+
+                    dataIndex += 4;
+                    keySeed++;
                 }
 
                 // tail
-                if (remaining > 0)
+                int trailing = remaining & 3;
+                if (trailing > 0)
                 {
                     uint keyValue = Key(keySeed);
-                    for (int i = 0; i < remaining; i++)
-                        buffer[index++] ^= (byte)((keyValue >> (i * 8)));
+                    for (int i = 0; i < trailing; i++)
+                    {
+                        data[dataIndex] ^= (byte)((keyValue >> (i * 8)) & 0xFF);
+                        dataIndex++;
+                    }
                 }
             }
 
@@ -767,59 +770,44 @@ namespace WWiseToolsWPF.Views
             using var ms = new MemoryStream(data);
             using var br = new BinaryReader(ms);
 
-            ms.Seek(8, SeekOrigin.Begin);
+            ms.Seek(4, SeekOrigin.Begin);
             int headerSize = br.ReadInt32();
+            EnqueueLog($"{headerSize}");
 
             ms.Seek(0, SeekOrigin.Begin);
-            byte[] header = br.ReadBytes(headerSize);
+            byte[] header = br.ReadBytes(headerSize+8);
             DecryptHeader(header, headerSize);
 
-            using var headerReader = new BinaryReader(new MemoryStream(header));
-            headerReader.BaseStream.Seek(12, SeekOrigin.Begin);
-            int entryCount = headerReader.ReadInt32();
+            var decData = new List<byte>();
+            decData.AddRange(header);
+            decData.AddRange(data.Skip(headerSize + 8));
 
-            var entries = new List<(string Type, int Offset, int Size, uint Id)>();
-            for (int i = 0; i < entryCount; i++)
-            {
-                string type = new string(headerReader.ReadChars(4));
-                int offset = headerReader.ReadInt32();
-                int size = headerReader.ReadInt32();
-                uint id = headerReader.ReadUInt32();
-                entries.Add((type, offset, size, id));
-            }
+            var decArray = decData.ToArray();
+            decArray[0] = (byte)'A';
+            decArray[1] = (byte)'K';
+            decArray[2] = (byte)'P';
+            decArray[3] = (byte)'K';
+            BitConverter.GetBytes(1).CopyTo(decArray, 8);
 
+            var pck = new Package(data);
             var tasks = new List<Task>();
 
-            foreach (var entry in entries)
+            foreach (var entry in pck.BanksTable.Files)
             {
-                ms.Seek(entry.Offset, SeekOrigin.Begin);
-                byte[] payload = br.ReadBytes(entry.Size);
-
-                switch (entry.Type)
-                {
-                    case "WEM\0":
-                    case "wem\0":
-                        DecryptWem(payload, entry.Id);
-                        tasks.Add(ProcessCHKWemAsync(payload, entry.Id, filepath));
-                        break;
-
-                    case "BNK\0":
-                    case "bnk\0":
-                        var bank = new Bank(payload);
-                        if (bank.DIDXChunk != null && bank.DATAChunk != null)
-                        {
-                            foreach (var fileEntryList in bank.DIDXChunk.Files.Values)
-                            {
-                                foreach (var file in fileEntryList)
-                                {
-                                    byte[] wemData = bank.DATAChunk.GetFile(file);
-                                    DecryptWem(wemData, file.Id);
-                                    tasks.Add(ProcessCHKWemAsync(wemData, file.Id, filepath));
-                                }
-                            }
-                        }
-                        break;
-                }
+                var bnkData = pck.GetBytes(entry);
+                tasks.Add(ProcessPckBnkAsync(bnkData, entry, filepath));
+            }
+            foreach (var entry in pck.ExternalsTable.Files)
+            {
+                var extData = pck.GetBytes(entry);
+                DecryptWem(extData, (uint)entry.FileId); // doesn't work
+                tasks.Add(ProcessPckExternalAsync(extData, entry, filepath));
+            }
+            foreach (var entry in pck.StreamsTable.Files)
+            {
+                var streamData = pck.GetBytes(entry);
+                DecryptWem(streamData, (uint)entry.FileId); // doesn't work
+                tasks.Add(ProcessPckStreamAsync(streamData, entry, filepath));
             }
 
             await Task.WhenAll(tasks);
