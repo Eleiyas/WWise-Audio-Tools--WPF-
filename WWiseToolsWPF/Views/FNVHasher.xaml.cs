@@ -23,36 +23,30 @@ namespace WWiseToolsWPF.Views
             _logger = new Logger(OutputTextBox);
             Unloaded += (_, _) => _logger?.Dispose();
 
-            LoadKnownHashes(@"Libs\known_hashes.txt");
-            LoadTargetHashes(@"Libs\target_hashes.txt");
+            LoadHashes(@"Libs\known_hashes.txt", knownHashes);
+            LoadHashes(@"Libs\target_hashes.txt", targetHashes);
         }
 
         #region File Loading
-        private void LoadTargetHashes(string filename)
+
+        private void LoadHashes(string filename, HashSet<ulong> hashSet)
         {
-            targetHashes.Clear();
+            hashSet.Clear();
 
-            var hashes = File.ReadAllLines(filename);
-
-            foreach (var hash in hashes)
+            if (!File.Exists(filename))
             {
-                // Might want to notify about the failed parses
-                if (ulong.TryParse(hash, NumberStyles.HexNumber, null, out var value))
-                    targetHashes.Add(value);
+                Directory.CreateDirectory(Path.GetDirectoryName(filename)!);
+                File.WriteAllText(filename, string.Empty);
             }
-        }
 
-        private void LoadKnownHashes(string filename)
-        {
-            knownHashes.Clear();
-
-            var hashes = File.ReadAllLines(filename);
-
-            foreach (var hash in hashes)
+            foreach (var line in File.ReadAllLines(filename))
             {
+                var hash = line.ToString().Trim();
+                if (string.IsNullOrEmpty(hash))
+                    continue;
                 // Might want to notify about the failed parses
-                if (ulong.TryParse(hash, NumberStyles.HexNumber, null, out var value))
-                    knownHashes.Add(value);
+                if (ulong.TryParse(line, NumberStyles.HexNumber, null, out var value))
+                    hashSet.Add(value);
             }
         }
 
