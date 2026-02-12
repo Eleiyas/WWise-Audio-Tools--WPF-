@@ -14,7 +14,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="Resources\Wwise_128.ico" />
+    <Resource Include="Resources\Wwise_128.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Resources\ElsLogoE-BlackWhite.png" />
   </ItemGroup>
 
   <ItemGroup>
