@@ -49,25 +49,25 @@ namespace WWiseToolsWPF.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("\"No KnownFilenames Map Selected.\"")]
-        public string KnownFilenamesPath {
+        [global::System.Configuration.DefaultSettingValueAttribute("\"No Filename Map Selected.\"")]
+        public string FilenameMapPath {
             get {
-                return ((string)(this["KnownFilenamesPath"]));
+                return ((string)(this["FilenameMapPath"]));
             }
             set {
-                this["KnownFilenamesPath"] = value;
+                this["FilenameMapPath"] = value;
             }
         }
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("\"No KnownEvents Map Selected.\"")]
-        public string KnownEventsPath {
+        [global::System.Configuration.DefaultSettingValueAttribute("\"No Event Map Selected.\"")]
+        public string EventsMapPath {
             get {
-                return ((string)(this["KnownEventsPath"]));
+                return ((string)(this["EventsMapPath"]));
             }
             set {
-                this["KnownEventsPath"] = value;
+                this["EventsMapPath"] = value;
             }
         }
         

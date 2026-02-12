@@ -69,30 +69,30 @@
                         Click="OutputDirectoryBrowse_Click"/>
 
                 <!-- Known filenames -->
-                <Label Grid.Row="2" Grid.Column="0" Content="Known_Filenames:" VerticalAlignment="Center"/>
+                <Label Grid.Row="2" Grid.Column="0" Content="Filename Map:" VerticalAlignment="Center"/>
                 <TextBox Grid.Row="2" Grid.Column="1"
-						 x:Name="KnownFilenamesTextBox"
+						 x:Name="FilenameMapTextBox"
                          IsReadOnly="True"
                          Margin="6,4"
-                         Text="No Known_Filenames TSV Selected."/>
+                         Text="No Filename Map Selected."/>
                 <Button Grid.Row="2" Grid.Column="2"
                         Content="Browse"
                         Padding="8,4"
                         Margin="6,4"
-                        Click="KnownFilenamesBrowse_Click"/>
+                        Click="FilenameMapBrowse_Click"/>
 
                 <!-- Known events -->
-                <Label Grid.Row="3" Grid.Column="0" Content="Known_Events:" VerticalAlignment="Center"/>
+                <Label Grid.Row="3" Grid.Column="0" Content="Event Map:" VerticalAlignment="Center"/>
                 <TextBox Grid.Row="3" Grid.Column="1"
-						 x:Name="KnownEventsTextBox"
+						 x:Name="EventMapTextBox"
                          IsReadOnly="True"
                          Margin="6,4"
-                         Text="No Known_Events TSV Selected."/>
+                         Text="No Event Map Selected."/>
                 <Button Grid.Row="3" Grid.Column="2"
                         Content="Browse"
                         Padding="8,4"
                         Margin="6,4"
-                        Click="KnownEventsBrowse_Click"/>
+                        Click="EventMapBrowse_Click"/>
 
                 <!-- Format options -->
                 <Label Grid.Row="4" Grid.Column="0" Content="Format:" VerticalAlignment="Center"/>

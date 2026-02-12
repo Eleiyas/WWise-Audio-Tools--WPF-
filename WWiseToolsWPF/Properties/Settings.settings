@@ -8,11 +8,11 @@
     <Setting Name="OutputDirectory" Type="System.String" Scope="User">
       <Value Profile="(Default)">"No Output Directory Selected."</Value>
     </Setting>
-    <Setting Name="KnownFilenamesPath" Type="System.String" Scope="User">
-      <Value Profile="(Default)">"No KnownFilenames Map Selected."</Value>
+    <Setting Name="FilenameMapPath" Type="System.String" Scope="User">
+      <Value Profile="(Default)">"No Filename Map Selected."</Value>
     </Setting>
-    <Setting Name="KnownEventsPath" Type="System.String" Scope="User">
-      <Value Profile="(Default)">"No KnownEvents Map Selected."</Value>
+    <Setting Name="EventsMapPath" Type="System.String" Scope="User">
+      <Value Profile="(Default)">"No Event Map Selected."</Value>
     </Setting>
     <Setting Name="WEMOutDir" Type="System.String" Scope="User">
       <Value Profile="(Default)" />

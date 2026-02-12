@@ -1,9 +1,11 @@
 using Microsoft.Win32;
+using Newtonsoft.Json;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Security.Cryptography;
+using System.Text.Json.Nodes;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
@@ -36,8 +38,8 @@ namespace WWiseToolsWPF.Views
 
         // Data
         private static List<string> inputFiles = new List<string>();
-        public Dictionary<string, string> KnownFilenames { get; } = new();
-        public Dictionary<string, string> KnownEvents { get; } = new();
+        public Dictionary<string, string> FilenameMap { get; } = new();
+        public Dictionary<string, string> EventMap { get; } = new();
         public enum OutputFormat { Wem, Wav, Ogg }
 
         // Settings
@@ -60,8 +62,8 @@ namespace WWiseToolsWPF.Views
             // TextBoxes
             InputFilesTextBox.Text = Properties.Settings.Default.InputFiles ?? "No Input Files Selected.";
             OutputDirectoryTextBox.Text = Properties.Settings.Default.OutputDirectory ?? "No Output Directory Selected.";
-            KnownFilenamesTextBox.Text = Properties.Settings.Default.KnownFilenamesPath ?? "No KnownFilenames Map Selected.";
-            KnownEventsTextBox.Text = Properties.Settings.Default.KnownEventsPath ?? "No KnownEvents Map Selected.";
+            FilenameMapTextBox.Text = Properties.Settings.Default.FilenameMapPath ?? "No Filename Map Selected.";
+            EventMapTextBox.Text = Properties.Settings.Default.EventsMapPath ?? "No Event Map Selected.";
 
             // Restore saved radio state where possible
             WEMExportRadioButton.IsChecked = ExportWEM;
@@ -121,45 +123,75 @@ namespace WWiseToolsWPF.Views
             UpdateCanExportStatus();
         }
 
-        private void KnownFilenamesBrowse_Click(object sender, RoutedEventArgs e)
+        private void FilenameMapBrowse_Click(object sender, RoutedEventArgs e)
         {
-            var ofd = new OpenFileDialog { Multiselect = false, Filter = "Known_Filenames TSV|*.tsv|All Files|*.*" };
+            var ofd = new OpenFileDialog { Multiselect = false, Filter = "TSV|*.tsv|JSON|*.json|All Files|*.*" };
             bool? res = ofd.ShowDialog();
             if (res == true)
             {
                 var sFileName = ofd.FileName;
-                KnownFilenamesTextBox.Text = sFileName;
+                FilenameMapTextBox.Text = sFileName;
 
-                var lines = File.ReadAllLines(sFileName);
-                KnownFilenames.Clear();
-                foreach (var line in lines)
+                FilenameMap.Clear();
+
+                if (Path.GetExtension(sFileName).Equals(".tsv", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (string.IsNullOrWhiteSpace(line)) continue;
-                    var entry = line.Split('\t');
-                    if (entry.Length >= 2) KnownFilenames[entry[0]] = entry[1];
+                    var lines = File.ReadAllLines(sFileName);
+
+                    if (lines != null)
+                    {
+                        foreach (var line in lines)
+                        {
+                            if (string.IsNullOrWhiteSpace(line)) continue;
+                            var entry = line.Split('\t');
+                            if (entry.Length >= 2) FilenameMap[entry[0]] = entry[1];
+                        }
+                    }
+                    else
+                    {
+                        _logger.Enqueue("Filename Map is empty.", System.Drawing.Color.Red);
+                    }
+                }
+                if (Path.GetExtension(sFileName).Equals(".json", StringComparison.OrdinalIgnoreCase))
+                {
+                    var json = File.ReadAllText(sFileName);
+
+                    var data = JsonConvert.DeserializeObject<Dictionary<string, string>>(json);
+
+                    if (data != null)
+                    {
+                        foreach (var kvp in data)
+                        {
+                            FilenameMap[kvp.Key] = kvp.Value;
+                        }
+                    }
+                    else
+                    {
+                        _logger.Enqueue("Failed to parse JSON file for Filename Map.", System.Drawing.Color.Red);
+                    }
                 }
 
-                _logger.Enqueue("Successfully loaded Known_Filenames.tsv", System.Drawing.Color.Green);
+                _logger.Enqueue("Successfully loaded Filename Map.", System.Drawing.Color.Green);
             }
             UpdateCanExportStatus();
         }
 
-        private void KnownEventsBrowse_Click(object sender, RoutedEventArgs e)
+        private void EventMapBrowse_Click(object sender, RoutedEventArgs e)
         {
             var ofd = new OpenFileDialog { Multiselect = false, Filter = "Known_Events TSV|*.tsv|All Files|*.*" };
             bool? res = ofd.ShowDialog();
             if (res == true)
             {
                 var sFileName = ofd.FileName;
-                KnownEventsTextBox.Text = sFileName;
+                EventMapTextBox.Text = sFileName;
 
                 var lines = File.ReadAllLines(sFileName);
-                KnownEvents.Clear();
+                EventMap.Clear();
                 foreach (var line in lines)
                 {
                     if (string.IsNullOrWhiteSpace(line)) continue;
                     var entry = line.Split('\t');
-                    if (entry.Length >= 2) KnownEvents[entry[0]] = entry[1];
+                    if (entry.Length >= 2) EventMap[entry[0]] = entry[1];
                 }
 
                 _logger.Enqueue("Successfully loaded Known_Events.tsv", System.Drawing.Color.Green);
@@ -639,7 +671,7 @@ namespace WWiseToolsWPF.Views
         public string GetPckExternalName(ulong fileId, out bool hasLanguage)
         {
             var name = fileId.ToString("x16");
-            hasLanguage = KnownFilenames.TryGetValue(name, out var full);
+            hasLanguage = FilenameMap.TryGetValue(name, out var full);
             if (hasLanguage)
                 return Path.Join(Path.GetDirectoryName(full) ?? string.Empty, Path.GetFileNameWithoutExtension(full));
             return name;
@@ -659,7 +691,7 @@ namespace WWiseToolsWPF.Views
             if (IsCheckedSafe(LegacyCheckBox))
             {
                 name = fileId.ToString("d");
-                hasLanguage = KnownEvents.TryGetValue(name, out var full);
+                hasLanguage = EventMap.TryGetValue(name, out var full);
                 if (hasLanguage)
                     return Path.Join(Path.GetDirectoryName(full) ?? string.Empty, Path.GetFileNameWithoutExtension(full));
             }
