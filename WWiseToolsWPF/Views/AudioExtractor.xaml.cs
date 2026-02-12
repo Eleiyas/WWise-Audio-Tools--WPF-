@@ -5,7 +5,6 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Security.Cryptography;
-using System.Text.Json.Nodes;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
@@ -125,7 +124,7 @@ namespace WWiseToolsWPF.Views
 
         private void FilenameMapBrowse_Click(object sender, RoutedEventArgs e)
         {
-            var ofd = new OpenFileDialog { Multiselect = false, Filter = "TSV|*.tsv|JSON|*.json|All Files|*.*" };
+            var ofd = new OpenFileDialog { Multiselect = false, Filter = "TSV|*.tsv|CSV|*.csv|JSON|*.json|All Files|*.*" };
             bool? res = ofd.ShowDialog();
             if (res == true)
             {
@@ -138,20 +137,32 @@ namespace WWiseToolsWPF.Views
                 {
                     var lines = File.ReadAllLines(sFileName);
 
-                    if (lines != null)
+                    foreach (var line in lines)
                     {
-                        foreach (var line in lines)
-                        {
-                            if (string.IsNullOrWhiteSpace(line)) continue;
-                            var entry = line.Split('\t');
-                            if (entry.Length >= 2) FilenameMap[entry[0]] = entry[1];
-                        }
-                    }
-                    else
-                    {
-                        _logger.Enqueue("Filename Map is empty.", System.Drawing.Color.Red);
+                        if (string.IsNullOrWhiteSpace(line)) continue;
+
+                        var entry = line.Split('\t');
+
+                        if (entry.Length >= 2) 
+                            FilenameMap[entry[0]] = entry[1];
                     }
                 }
+
+                if (Path.GetExtension(sFileName).Equals(".csv", StringComparison.OrdinalIgnoreCase))
+                {
+                    var lines = File.ReadAllLines(sFileName);
+
+                    foreach (var line in File.ReadLines(sFileName))
+                    {
+                        if (string.IsNullOrWhiteSpace(line)) continue;
+
+                        var entry = line.Split(',', 2);
+
+                        if (entry.Length == 2)
+                            FilenameMap[entry[0].Trim()] = entry[1].Trim();
+                    }
+                }
+
                 if (Path.GetExtension(sFileName).Equals(".json", StringComparison.OrdinalIgnoreCase))
                 {
                     var json = File.ReadAllText(sFileName);
@@ -167,7 +178,7 @@ namespace WWiseToolsWPF.Views
                     }
                     else
                     {
-                        _logger.Enqueue("Failed to parse JSON file for Filename Map.", System.Drawing.Color.Red);
+                        _logger.Enqueue("Empty or Malformatted JSON Filename Map selected.", System.Drawing.Color.Red);
                     }
                 }
 
