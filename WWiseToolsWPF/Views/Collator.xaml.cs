@@ -130,8 +130,8 @@ namespace WWiseToolsWPF.Views
 
             var result = new ConcurrentBag<string>();
 
-            string[] keyNames = { "_sourceNames", "SourceNames", "sourceNames", "OFEEIPOMNKD", "EIKJKDICKMJ", "DHMACMBAEHG", "FOLFEPNIKEC", "FONIFKPLDGC", "HLGDIILMGCB", "LPFADPAJNJE", "JKHGLBHOKIC", "JKDJFGBGOEB" };
-            string[] fieldNames = { "sourceFileName", "CBGLAJNLFCB", "HLGOMILNFNK", "NCPBJNJNCEI", "HPAJGPIFDKB", "POLDPGADMOJ", "KEGGFHAFNBM", "AJHGGOIEIFN", "BJDAJEKPCFP", "DCIHFJLBLAP" };
+            string[] keyNames = { "_sourceNames", "SourceNames", "sourceNames", "OFEEIPOMNKD", "EIKJKDICKMJ", "DHMACMBAEHG", "FOLFEPNIKEC", "FONIFKPLDGC", "HLGDIILMGCB", "LPFADPAJNJE", "JKHGLBHOKIC", "JKDJFGBGOEB", "OPGDOEDEJOJ" };
+            string[] fieldNames = { "sourceFileName", "CBGLAJNLFCB", "HLGOMILNFNK", "NCPBJNJNCEI", "HPAJGPIFDKB", "POLDPGADMOJ", "KEGGFHAFNBM", "AJHGGOIEIFN", "BJDAJEKPCFP", "DCIHFJLBLAP", "MDOCAGOFPAP" };
 
             await Task.WhenAll(files.Select(async fileName =>
             {

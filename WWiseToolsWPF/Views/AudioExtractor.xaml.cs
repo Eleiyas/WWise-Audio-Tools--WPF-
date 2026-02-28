@@ -181,6 +181,10 @@ namespace WWiseToolsWPF.Views
                         _logger.Enqueue("Empty or Malformatted JSON Filename Map selected.", System.Drawing.Color.Red);
                     }
                 }
+                else
+                {
+                    _logger.Enqueue("Unsupported file format for Filename Map. Please use TSV, CSV, or JSON.", System.Drawing.Color.Red);
+                }
 
                 _logger.Enqueue("Successfully loaded Filename Map.", System.Drawing.Color.Green);
             }
@@ -420,6 +424,13 @@ namespace WWiseToolsWPF.Views
             catch { }
         }
 
+        private static string NormalizeRelPath(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return string.Empty;
+            var p = path.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+            return p.TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        }
+
         private bool IsCheckedSafe(CheckBox cb)
         {
             try
@@ -567,7 +578,7 @@ namespace WWiseToolsWPF.Views
 
         private void LoadChecksumIndex()
         {
-            _checksumIndex = new ConcurrentDictionary<string, (string Hash, string Date)>();
+            _checksumIndex = new ConcurrentDictionary<string, (string Hash, string Date)>(StringComparer.OrdinalIgnoreCase);
             string directoryName = Path.GetFileName(OutDir);
             string processedFilesFilePath = Path.Combine("Logging\\", directoryName + "-WEM_Checksums.csv");
             if (!File.Exists(processedFilesFilePath)) return;
@@ -579,7 +590,8 @@ namespace WWiseToolsWPF.Views
                 {
                     var hash = parts[1];
                     var date = parts[^1];
-                    _checksumIndex[parts[0]] = (hash, date);
+                    var key = NormalizeRelPath(parts[0]);
+                    _checksumIndex[key] = (hash, date);
                 }
             }
         }
@@ -619,10 +631,11 @@ namespace WWiseToolsWPF.Views
                 }
             }
 
-            _checksumIndex ??= new ConcurrentDictionary<string, (string, string)>();
+            _checksumIndex ??= new ConcurrentDictionary<string, (string, string)>(StringComparer.OrdinalIgnoreCase);
             foreach (var kv in processedFileHashes)
             {
-                _checksumIndex[kv.Key] = kv.Value;
+                var key = NormalizeRelPath(kv.Key);
+                _checksumIndex[key] = kv.Value;
             }
 
             var files = Directory.EnumerateFiles(WEMOutDir, "*", SearchOption.AllDirectories);
@@ -639,26 +652,27 @@ namespace WWiseToolsWPF.Views
                         folderName = folderName.Substring(1);
                     string concatenatedFolders = string.Join("\\", folderName.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Where(f => !string.IsNullOrEmpty(f)));
                     string outputLine = string.IsNullOrEmpty(concatenatedFolders) ? fileName : (concatenatedFolders + "\\" + fileName);
+                    var normalizedOutputLine = NormalizeRelPath(outputLine);
 
                     var fileHash = GetFileHash(file);
-                    if (processedFileHashes.TryGetValue(outputLine, out var existing))
+                    if (processedFileHashes.TryGetValue(normalizedOutputLine, out var existing))
                     {
                         if (existing.Hash != fileHash)
                         {
-                            processedFileHashes[outputLine] = (fileHash, DateTime.Now.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture));
-                            _logger.Enqueue("> MD5-Checksum Changed: " + outputLine, System.Drawing.Color.Orange);
+                            processedFileHashes[normalizedOutputLine] = (fileHash, DateTime.Now.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture));
+                            _logger.Enqueue("> MD5-Checksum Changed: " + normalizedOutputLine, System.Drawing.Color.Orange);
                             anyChange = true;
                         }
                         else
                         {
                             File.Delete(file);
-                            _logger.Enqueue("> File Deleted (MD5-Checksum Matched): " + outputLine, System.Drawing.Color.Red);
+                            _logger.Enqueue("> File Deleted (MD5-Checksum Matched): " + normalizedOutputLine, System.Drawing.Color.Red);
                         }
                     }
                     else
                     {
-                        processedFileHashes[outputLine] = (fileHash, DateTime.Now.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture));
-                        _logger.Enqueue("> New MD5-Checksum Generated: " + outputLine, System.Drawing.Color.Green);
+                        processedFileHashes[normalizedOutputLine] = (fileHash, DateTime.Now.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture));
+                        _logger.Enqueue("> New MD5-Checksum Generated: " + normalizedOutputLine, System.Drawing.Color.Green);
                         anyChange = true;
                     }
                 }
@@ -1097,8 +1111,10 @@ namespace WWiseToolsWPF.Views
         {
             EnsureParentDirectory(path);
 
-            var rel = Path.GetRelativePath(WEMOutDir, path).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            if (string.IsNullOrEmpty(rel)) rel = Path.GetFileName(path);
+            var rel = Path.GetRelativePath(WEMOutDir, path);
+            if (string.IsNullOrEmpty(rel) || rel == ".")
+                rel = Path.GetFileName(path);
+            rel = NormalizeRelPath(rel);
 
             var md = GetHashFromBytes(data);
             var nowDate = DateTime.Now.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture);
@@ -1116,7 +1132,7 @@ namespace WWiseToolsWPF.Views
 
             try
             {
-                _checksumIndex ??= new ConcurrentDictionary<string, (string, string)>();
+                _checksumIndex ??= new ConcurrentDictionary<string, (string, string)>(StringComparer.OrdinalIgnoreCase);
                 _checksumIndex[rel] = (md, nowDate);
             }
             catch { }
