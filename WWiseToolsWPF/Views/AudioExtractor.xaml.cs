@@ -24,7 +24,7 @@ namespace WWiseToolsWPF.Views
         // Logging and concurrency
         private Logger _logger;
         private readonly SemaphoreSlim _conversionSemaphore = new SemaphoreSlim(Math.Max(4, Environment.ProcessorCount));
-        private readonly SemaphoreSlim _fileProcessingSemaphore = new SemaphoreSlim(1);
+        private readonly SemaphoreSlim _fileProcessingSemaphore = new SemaphoreSlim(Math.Max(1, Environment.ProcessorCount / 2));
 
         // Checksum index used to skip already-processed files
         private ConcurrentDictionary<string, (string Hash, string Date)>? _checksumIndex;
@@ -431,6 +431,34 @@ namespace WWiseToolsWPF.Views
             return p.TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         }
 
+        private static string NormalizeHash(string? hash)
+        {
+            if (string.IsNullOrWhiteSpace(hash)) return string.Empty;
+            return hash.Replace("-", string.Empty).Trim().ToLowerInvariant();
+        }
+
+        private static bool TryParseChecksumCsvLine(string line, out string key, out string hash, out string date)
+        {
+            key = string.Empty;
+            hash = string.Empty;
+            date = string.Empty;
+
+            if (string.IsNullOrWhiteSpace(line)) return false;
+
+            var trimmed = line.Trim();
+            var lastComma = trimmed.LastIndexOf(',');
+            if (lastComma <= 0 || lastComma >= trimmed.Length - 1) return false;
+
+            var secondLastComma = trimmed.LastIndexOf(',', lastComma - 1);
+            if (secondLastComma <= 0 || secondLastComma >= lastComma - 1) return false;
+
+            key = NormalizeRelPath(trimmed.Substring(0, secondLastComma).Trim());
+            hash = NormalizeHash(trimmed.Substring(secondLastComma + 1, lastComma - secondLastComma - 1));
+            date = trimmed.Substring(lastComma + 1).Trim();
+
+            return !string.IsNullOrEmpty(key) && !string.IsNullOrEmpty(hash);
+        }
+
         private bool IsCheckedSafe(CheckBox cb)
         {
             try
@@ -584,15 +612,8 @@ namespace WWiseToolsWPF.Views
             if (!File.Exists(processedFilesFilePath)) return;
             foreach (var line in File.ReadLines(processedFilesFilePath))
             {
-                if (string.IsNullOrWhiteSpace(line)) continue;
-                var parts = line.Split(',');
-                if (parts.Length >= 3)
-                {
-                    var hash = parts[1];
-                    var date = parts[^1];
-                    var key = NormalizeRelPath(parts[0]);
-                    _checksumIndex[key] = (hash, date);
-                }
+                if (!TryParseChecksumCsvLine(line, out var key, out var hash, out var date)) continue;
+                _checksumIndex[key] = (hash, date);
             }
         }
 
@@ -601,7 +622,7 @@ namespace WWiseToolsWPF.Views
             if (_checksumIndex is null) return;
             string directoryName = Path.GetFileName(OutDir);
             string processedFilesFilePath = Path.Combine("Logging\\", directoryName + "-WEM_Checksums.csv");
-            var lines = _checksumIndex.Select(kv => kv.Key + "," + kv.Value.Hash + "," + kv.Value.Date);
+            var lines = _checksumIndex.Select(kv => NormalizeRelPath(kv.Key) + "," + NormalizeHash(kv.Value.Hash) + "," + kv.Value.Date);
             Directory.CreateDirectory("Logging\\");
             File.WriteAllLines(processedFilesFilePath, lines.OrderBy(l => l));
         }
@@ -611,7 +632,7 @@ namespace WWiseToolsWPF.Views
             string directoryName = Path.GetFileName(OutDir);
             string processedFilesFilePath = Path.Combine("Logging\\", directoryName + "-WEM_Checksums.csv");
 
-            var processedFileHashes = new ConcurrentDictionary<string, (string Hash, string Date)>();
+            var processedFileHashes = new ConcurrentDictionary<string, (string Hash, string Date)>(StringComparer.OrdinalIgnoreCase);
             bool anyChange = false;
 
             if (!Directory.Exists("Logging\\")) Directory.CreateDirectory("Logging\\");
@@ -620,22 +641,15 @@ namespace WWiseToolsWPF.Views
             {
                 foreach (var line in File.ReadLines(processedFilesFilePath))
                 {
-                    if (string.IsNullOrWhiteSpace(line)) continue;
-                    var parts = line.Split(',');
-                    if (parts.Length >= 3)
-                    {
-                        var date = parts[^1];
-                        var hash = parts[1];
-                        processedFileHashes[parts[0]] = (hash, date);
-                    }
+                    if (!TryParseChecksumCsvLine(line, out var key, out var hash, out var date)) continue;
+                    processedFileHashes[key] = (hash, date);
                 }
             }
 
             _checksumIndex ??= new ConcurrentDictionary<string, (string, string)>(StringComparer.OrdinalIgnoreCase);
             foreach (var kv in processedFileHashes)
             {
-                var key = NormalizeRelPath(kv.Key);
-                _checksumIndex[key] = kv.Value;
+                _checksumIndex.TryAdd(kv.Key, kv.Value);
             }
 
             var files = Directory.EnumerateFiles(WEMOutDir, "*", SearchOption.AllDirectories);
@@ -645,33 +659,30 @@ namespace WWiseToolsWPF.Views
             {
                 try
                 {
-                    string fileName = Path.GetFileName(file);
-                    string folderPath = Path.GetDirectoryName(file) ?? string.Empty;
-                    string folderName = folderPath.Length > WEMOutDir.Length ? folderPath.Substring(WEMOutDir.Length) : string.Empty;
-                    if (folderName.StartsWith(Path.DirectorySeparatorChar.ToString()) || folderName.StartsWith(Path.AltDirectorySeparatorChar.ToString()))
-                        folderName = folderName.Substring(1);
-                    string concatenatedFolders = string.Join("\\", folderName.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Where(f => !string.IsNullOrEmpty(f)));
-                    string outputLine = string.IsNullOrEmpty(concatenatedFolders) ? fileName : (concatenatedFolders + "\\" + fileName);
-                    var normalizedOutputLine = NormalizeRelPath(outputLine);
+                    var normalizedOutputLine = NormalizeRelPath(Path.GetRelativePath(WEMOutDir, file));
+                    if (string.IsNullOrEmpty(normalizedOutputLine) || normalizedOutputLine == ".")
+                        normalizedOutputLine = Path.GetFileName(file);
 
-                    var fileHash = GetFileHash(file);
+                    var fileHash = NormalizeHash(GetFileHash(file));
                     if (processedFileHashes.TryGetValue(normalizedOutputLine, out var existing))
                     {
-                        if (existing.Hash != fileHash)
+                        if (NormalizeHash(existing.Hash) != fileHash)
                         {
                             processedFileHashes[normalizedOutputLine] = (fileHash, DateTime.Now.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture));
+                            _checksumIndex[normalizedOutputLine] = processedFileHashes[normalizedOutputLine];
                             _logger.Enqueue("> MD5-Checksum Changed: " + normalizedOutputLine, System.Drawing.Color.Orange);
                             anyChange = true;
                         }
                         else
                         {
-                            File.Delete(file);
-                            _logger.Enqueue("> File Deleted (MD5-Checksum Matched): " + normalizedOutputLine, System.Drawing.Color.Red);
+                            _checksumIndex[normalizedOutputLine] = (fileHash, existing.Date);
+                            _logger.Enqueue("> MD5-Checksum Matched: " + normalizedOutputLine, System.Drawing.Color.DimGray);
                         }
                     }
                     else
                     {
                         processedFileHashes[normalizedOutputLine] = (fileHash, DateTime.Now.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture));
+                        _checksumIndex[normalizedOutputLine] = processedFileHashes[normalizedOutputLine];
                         _logger.Enqueue("> New MD5-Checksum Generated: " + normalizedOutputLine, System.Drawing.Color.Green);
                         anyChange = true;
                     }
@@ -684,7 +695,7 @@ namespace WWiseToolsWPF.Views
 
             if (anyChange)
             {
-                var lines = processedFileHashes.Select(kv => kv.Key + "," + kv.Value.Hash + "," + kv.Value.Date);
+                var lines = processedFileHashes.Select(kv => NormalizeRelPath(kv.Key) + "," + NormalizeHash(kv.Value.Hash) + "," + kv.Value.Date);
                 File.WriteAllLines(processedFilesFilePath, lines.OrderBy(l => l));
             }
         }
@@ -800,6 +811,149 @@ namespace WWiseToolsWPF.Views
         #endregion
 
         #region Export Pipeline
+        public readonly record struct WemPrecheck(string RelativePath, string Hash, bool ShouldSkip);
+
+        private WemPrecheck BuildWemPrecheck(byte[] data, string path)
+        {
+            var rel = Path.GetRelativePath(WEMOutDir, path);
+            if (string.IsNullOrEmpty(rel) || rel == ".")
+                rel = Path.GetFileName(path);
+
+            rel = NormalizeRelPath(rel);
+            var hash = GetHashFromBytes(data);
+
+            bool shouldSkip = false;
+            if (_checksumIndex is not null && _checksumIndex.TryGetValue(rel, out var existing))
+                shouldSkip = NormalizeHash(existing.Hash) == hash;
+
+            return new WemPrecheck(rel, hash, shouldSkip);
+        }
+
+        private void LogSkippedWem(string relativePath)
+        {
+            _logger.Enqueue($"{Path.GetFileName(relativePath)} - SKIPPED (already processed)", System.Drawing.Color.DimGray);
+        }
+
+        private static async Task RunWorkQueueAsync(List<Func<Task>> workQueue)
+        {
+            if (workQueue.Count == 0) return;
+            var tasks = workQueue.Select(run => run()).ToList();
+            await Task.WhenAll(tasks);
+        }
+
+        private void QueueBankWork(Bank bnk, string filepath, List<Func<Task>> workQueue)
+        {
+            if (bnk.DIDXChunk is null || bnk.DATAChunk is null)
+                return;
+
+            foreach (var fileEntryList in bnk.DIDXChunk.Files.Values)
+            {
+                foreach (var file in fileEntryList)
+                {
+                    var wemData = bnk.DATAChunk.GetFile(file);
+                    var ext = wemData.DetermineFileExtension();
+
+                    if (ext == ".wem")
+                    {
+                        var wemPath = GetPckBnkWemOutputPath(file, bnk.Header, OutputFormat.Wem);
+                        var precheck = BuildWemPrecheck(wemData, wemPath);
+                        if (precheck.ShouldSkip)
+                        {
+                            LogSkippedWem(precheck.RelativePath);
+                            continue;
+                        }
+
+                        var queuedData = wemData;
+                        var queuedFile = file;
+                        var queuedHeader = bnk.Header;
+                        var queuedPrecheck = precheck;
+                        workQueue.Add(() => ProcessPckBnkWemAsync(queuedData, queuedFile, queuedHeader, filepath, queuedPrecheck));
+                        continue;
+                    }
+
+                    var queuedNonWemData = wemData;
+                    var queuedNonWemFile = file;
+                    var queuedNonWemHeader = bnk.Header;
+                    workQueue.Add(() => ProcessPckBnkWemAsync(queuedNonWemData, queuedNonWemFile, queuedNonWemHeader, filepath));
+                }
+            }
+        }
+
+        private async Task ProcessPackageTablesAsync(
+            Package pck,
+            string filepath,
+            Action<byte[], FileTable.FileEntry>? transformExternalStreamData = null)
+        {
+            var workQueue = new List<Func<Task>>();
+
+            foreach (var entry in pck.BanksTable.Files)
+            {
+                var bnkData = pck.GetBytes(entry);
+                var bnk = new Bank(bnkData);
+                bnk.Package = entry.Parent.Parent;
+                bnk.Language = entry.GetLanguage();
+                QueueBankWork(bnk, filepath, workQueue);
+            }
+
+            foreach (var entry in pck.ExternalsTable.Files)
+            {
+                var extData = pck.GetBytes(entry);
+                transformExternalStreamData?.Invoke(extData, entry);
+
+                var ext = extData.DetermineFileExtension();
+                if (ext == ".wem")
+                {
+                    var wemPath = GetPckExternalOutputPath(filepath, entry, OutputFormat.Wem);
+                    var precheck = BuildWemPrecheck(extData, wemPath);
+                    if (precheck.ShouldSkip)
+                    {
+                        LogSkippedWem(precheck.RelativePath);
+                        continue;
+                    }
+
+                    var queuedData = extData;
+                    var queuedEntry = entry;
+                    var queuedPrecheck = precheck;
+                    workQueue.Add(() => ProcessPckExternalAsync(queuedData, queuedEntry, filepath, queuedPrecheck));
+                    continue;
+                }
+
+                var queuedNonWemData = extData;
+                var queuedNonWemEntry = entry;
+                workQueue.Add(() => ProcessPckExternalAsync(queuedNonWemData, queuedNonWemEntry, filepath));
+            }
+
+            foreach (var entry in pck.StreamsTable.Files)
+            {
+                var streamData = pck.GetBytes(entry);
+                transformExternalStreamData?.Invoke(streamData, entry);
+
+                var ext = streamData.DetermineFileExtension();
+                if (ext == ".wem")
+                {
+                    var wemPath = GetPckStreamOutputPath(entry, OutputFormat.Wem);
+                    var precheck = BuildWemPrecheck(streamData, wemPath);
+                    if (precheck.ShouldSkip)
+                    {
+                        LogSkippedWem(precheck.RelativePath);
+                        continue;
+                    }
+
+                    var queuedData = streamData;
+                    var queuedEntry = entry;
+                    var queuedPrecheck = precheck;
+                    workQueue.Add(() => ProcessPckStreamAsync(queuedData, queuedEntry, filepath, queuedPrecheck));
+                    continue;
+                }
+
+                var queuedNonWemData = streamData;
+                var queuedNonWemEntry = entry;
+                workQueue.Add(() => ProcessPckStreamAsync(queuedNonWemData, queuedNonWemEntry, filepath));
+            }
+
+            await RunWorkQueueAsync(workQueue);
+        }
+
         private async Task ConvertInputFileAsync(string filepath)
         {
             await _fileProcessingSemaphore.WaitAsync();
@@ -836,45 +990,16 @@ namespace WWiseToolsWPF.Views
         public async Task ProcessPckAsync(byte[] data, string filepath)
         {
             var pck = new Package(data);
-            var tasks = new List<Task>();
-
-            foreach (var entry in pck.BanksTable.Files)
-            {
-                var bnkData = pck.GetBytes(entry);
-                tasks.Add(ProcessPckBnkAsync(bnkData, entry, filepath));
-            }
-            foreach (var entry in pck.ExternalsTable.Files)
-            {
-                var extData = pck.GetBytes(entry);
-                tasks.Add(ProcessPckExternalAsync(extData, entry, filepath));
-            }
-            foreach (var entry in pck.StreamsTable.Files)
-            {
-                var streamData = pck.GetBytes(entry);
-                tasks.Add(ProcessPckStreamAsync(streamData, entry, filepath));
-            }
-
-            await Task.WhenAll(tasks);
+            await ProcessPackageTablesAsync(pck, filepath);
         }
 
         //GENERAL BNK / UNENCRYPTED
         public async Task ProcessBnkAsync(byte[] data, string filepath)
         {
             var bnk = new Bank(data);
-
-            if (bnk.DIDXChunk is not null && bnk.DATAChunk is not null)
-            {
-                var tasks = new List<Task>();
-                foreach (var fileEntryList in bnk.DIDXChunk.Files.Values)
-                {
-                    foreach (var file in fileEntryList)
-                    {
-                        var wemData = bnk.DATAChunk.GetFile(file);
-                        tasks.Add(ProcessPckBnkWemAsync(wemData, file, bnk.Header, filepath));
-                    }
-                }
-                await Task.WhenAll(tasks);
-            }
+            var workQueue = new List<Func<Task>>();
+            QueueBankWork(bnk, filepath, workQueue);
+            await RunWorkQueueAsync(workQueue);
         }
 
         //CHK / ENCRYPTED
@@ -956,27 +1081,10 @@ namespace WWiseToolsWPF.Views
             BitConverter.GetBytes(1).CopyTo(decArray, 8);
 
             var pck = new Package(decArray);
-            var tasks = new List<Task>();
-
-            foreach (var entry in pck.BanksTable.Files)
+            await ProcessPackageTablesAsync(pck, filepath, (wemData, entry) =>
             {
-                var bnkData = pck.GetBytes(entry);
-                tasks.Add(ProcessPckBnkAsync(bnkData, entry, filepath));
-            }
-            foreach (var entry in pck.ExternalsTable.Files)
-            {
-                var extData = pck.GetBytes(entry);
-                DecryptWem(extData, (uint)entry.FileId); // doesn't work
-                tasks.Add(ProcessPckExternalAsync(extData, entry, filepath));
-            }
-            foreach (var entry in pck.StreamsTable.Files)
-            {
-                var streamData = pck.GetBytes(entry);
-                DecryptWem(streamData, (uint)entry.FileId); // doesn't work
-                tasks.Add(ProcessPckStreamAsync(streamData, entry, filepath));
-            }
-
-            await Task.WhenAll(tasks);
+                DecryptWem(wemData, (uint)entry.FileId); // doesn't work
+            });
         }
 
         //BanksTable.Files
@@ -985,41 +1093,20 @@ namespace WWiseToolsWPF.Views
             var bnk = new Bank(data);
             bnk.Package = entry.Parent.Parent;
             bnk.Language = entry.GetLanguage();
-
-            if (bnk.DIDXChunk is not null && bnk.DATAChunk is not null)
-            {
-                var tasks = new List<Task>();
-                foreach (var fileEntryList in bnk.DIDXChunk.Files.Values)
-                {
-                    foreach (var file in fileEntryList)
-                    {
-                        var wemData = bnk.DATAChunk.GetFile(file);
-                        tasks.Add(ProcessPckBnkWemAsync(wemData, file, bnk.Header, filepath));
-                    }
-                }
-                await Task.WhenAll(tasks);
-            }
+            var workQueue = new List<Func<Task>>();
+            QueueBankWork(bnk, filepath, workQueue);
+            await RunWorkQueueAsync(workQueue);
         }
 
         //ExternalsTable.Files
-        public async Task ProcessPckExternalAsync(byte[] data, FileTable.FileEntry entry, string filepath)
+        public async Task ProcessPckExternalAsync(byte[] data, FileTable.FileEntry entry, string filepath, WemPrecheck? precheck = null)
         {
             var ext = data.DetermineFileExtension();
             if (ext == ".wem")
             {
                 var wemPath = GetPckExternalOutputPath(filepath, entry, OutputFormat.Wem);
                 EnsureParentDirectory(wemPath);
-                await ProcessWemAsync(data, wemPath);
-                if (ExportWAV || ExportOGG)
-                {
-                    var wavPath = wemPath.Replace(WEMOutDir, WAVOutDir).Replace(".wem", ".wav");
-                    await ConvertWemBytesToWavFileAsync(data, wavPath);
-                    if (ExportOGG)
-                    {
-                        var oggPath = wavPath.Replace(WAVOutDir, OGGOutDir).Replace(".wav", ".ogg");
-                        await ConvertWavFileToOggAsync(wavPath, oggPath);
-                    }
-                }
+                await ProcessWemAsync(data, wemPath, precheck);
             }
             else if (ext == ".wav")
             {
@@ -1041,24 +1128,14 @@ namespace WWiseToolsWPF.Views
         }
 
         //StreamsTable.Files
-        public async Task ProcessPckStreamAsync(byte[] data, FileTable.FileEntry entry, string filepath)
+        public async Task ProcessPckStreamAsync(byte[] data, FileTable.FileEntry entry, string filepath, WemPrecheck? precheck = null)
         {
             var ext = data.DetermineFileExtension();
             if (ext == ".wem")
             {
                 var wemPath = GetPckStreamOutputPath(entry, OutputFormat.Wem);
                 EnsureParentDirectory(wemPath);
-                await ProcessWemAsync(data, wemPath);
-                if (ExportWAV || ExportOGG)
-                {
-                    var wavPath = wemPath.Replace(WEMOutDir, WAVOutDir).Replace(".wem", ".wav");
-                    await ConvertWemBytesToWavFileAsync(data, wavPath);
-                    if (ExportOGG)
-                    {
-                        var oggPath = wavPath.Replace(WAVOutDir, OGGOutDir).Replace(".wav", ".ogg");
-                        await ConvertWavFileToOggAsync(wavPath, oggPath);
-                    }
-                }
+                await ProcessWemAsync(data, wemPath, precheck);
             }
             else if (ext == ".wav")
             {
@@ -1080,14 +1157,14 @@ namespace WWiseToolsWPF.Views
         }
 
         //DIDXChunk.Files
-        public async Task ProcessPckBnkWemAsync(byte[] data, DataIndexChunk.FileEntry entry, BankHeader header, string filepath)
+        public async Task ProcessPckBnkWemAsync(byte[] data, DataIndexChunk.FileEntry entry, BankHeader header, string filepath, WemPrecheck? precheck = null)
         {
             var ext = data.DetermineFileExtension();
             var wemPath = GetPckBnkWemOutputPath(entry, header, OutputFormat.Wem);
             EnsureParentDirectory(wemPath);
             if (ext == ".wem")
             {
-                await ProcessWemAsync(data, wemPath);
+                await ProcessWemAsync(data, wemPath, precheck);
             }
             else if (ext == ".wav")
             {
@@ -1107,25 +1184,14 @@ namespace WWiseToolsWPF.Views
         }
 
         //WEM Files
-        public async Task ProcessWemAsync(byte[] data, string path)
+        public async Task ProcessWemAsync(byte[] data, string path, WemPrecheck? precheck = null)
         {
             EnsureParentDirectory(path);
-
-            var rel = Path.GetRelativePath(WEMOutDir, path);
-            if (string.IsNullOrEmpty(rel) || rel == ".")
-                rel = Path.GetFileName(path);
-            rel = NormalizeRelPath(rel);
-
-            var md = GetHashFromBytes(data);
-            var nowDate = DateTime.Now.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture);
-
-            if (_checksumIndex is not null && _checksumIndex.TryGetValue(rel, out var existing))
+            var resolvedPrecheck = precheck ?? BuildWemPrecheck(data, path);
+            if (resolvedPrecheck.ShouldSkip)
             {
-                if (!string.IsNullOrEmpty(existing.Hash) && existing.Hash == md)
-                {
-                    _logger.Enqueue($"{Path.GetFileName(rel)} - SKIPPED (already processed)", System.Drawing.Color.DimGray);
-                    return;
-                }
+                LogSkippedWem(resolvedPrecheck.RelativePath);
+                return;
             }
 
             await File.WriteAllBytesAsync(path, data);
@@ -1133,7 +1199,8 @@ namespace WWiseToolsWPF.Views
             try
             {
                 _checksumIndex ??= new ConcurrentDictionary<string, (string, string)>(StringComparer.OrdinalIgnoreCase);
-                _checksumIndex[rel] = (md, nowDate);
+                _checksumIndex[resolvedPrecheck.RelativePath] =
+                    (resolvedPrecheck.Hash, DateTime.Now.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture));
             }
             catch { }
 
