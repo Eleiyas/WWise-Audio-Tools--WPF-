@@ -34,7 +34,7 @@ jobs:
     - name: Prepare Artifact 
       run: | 
         mkdir output\WWise-Audio-Tools--WPF-net10-${{ github.sha }} 
-        xcopy /E /I /Y .\dist\net10.0-windows\* output\WWise-Audio-Tools--WPF-net10-${{ github.sha }}\ 
+        xcopy /E /I /Y .\dist\net10.0-windows\* output-net10\WWise-Audio-Tools--WPF-net10-${{ github.sha }}\ 
         
     - name: Upload .NET 10 Artifact 
       uses: actions/upload-artifact@v4 
