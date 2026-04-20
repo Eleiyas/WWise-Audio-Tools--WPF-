@@ -15,24 +15,29 @@ jobs:
   build:
     runs-on: windows-latest
 
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.x
-          include-prerelease: true
-
-      - name: Nuget Restore
-        run: nuget restore
-
-      - name: Restore dependencies
-        run: dotnet restore
-
-      - name: Build
-        run: dotnet build --configuration Release --no-restore
-
-      - name: Publish
-        run: dotnet publish --configuration Release --output publish
+    steps: 
+    - uses: actions/checkout@v4 
+    - name: Setup .NET SDK 
+      uses: actions/setup-dotnet@v4 
+      with: 
+        dotnet-version: "10.0.x" 
+        
+    - name: Restore dependencies 
+      run: dotnet restore 
+      
+    - name: Build 
+      run: dotnet build --configuration Release --no-restore 
+    
+    - name: Publish 
+      run: dotnet publish --configuration Release --framework net10.0-windows --output .\dist\net10.0-windows 
+    
+    - name: Prepare Artifact 
+      run: | 
+        mkdir output\WWise-Audio-Tools--WPF-net10-${{ github.sha }} 
+        xcopy /E /I /Y .\dist\net10.0-windows\* output\WWise-Audio-Tools--WPF-net10-${{ github.sha }}\ 
+        
+    - name: Upload .NET 10 Artifact 
+      uses: actions/upload-artifact@v4 
+      with: 
+        name: WWise-Audio-Tools--WPF-net10
+        path: output-net10
